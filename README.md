@@ -20,12 +20,16 @@ and [PLAN.md](PLAN.md) for progress.
 dotnet run --project src/MarathonCoach                # Discord bot on your Garmin data
 dotnet run --project src/MarathonCoach -- --console   # today's workout printed here, no Discord
 dotnet run --project src/MarathonCoach -- --prompt    # what would be sent to Claude (free, no API call)
+dotnet run --project src/MarathonCoach -- --chat      # chat with the coach here, no Discord
 ```
 
 Add `--sample` to any of them to use fake data instead of Garmin.
 
-In Discord: `/today` for the workout, `/sync` to re-read Garmin now (data otherwise refreshes after
-3 hours or on a new day). Only the user in `DISCORD_OWNER_ID` gets an answer. If Garmin asks for a 2FA
+In Discord, **DM the bot** in plain words to chat ("legs are trashed, swap tomorrow?"). Claude sees your
+current data and the last 10 exchanges; the conversation is saved in `data/chat-history.json`
+(git-ignored) and survives restarts. Commands: `/today` for the workout, `/sync` to re-read Garmin now
+(data otherwise refreshes after 3 hours or on a new day), `/reset` to forget the chat.
+To DM the bot, click its name in your server's member list and send a message. Only the user in `DISCORD_OWNER_ID` gets an answer. If Garmin asks for a 2FA
 code, the bot asks for it in its console window at startup.
 
 ## Test

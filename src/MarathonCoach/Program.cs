@@ -5,6 +5,7 @@ using MarathonCoach;
 //   dotnet run -- --sample            Discord bot on fake data (no Garmin login)
 //   dotnet run -- --console           print today's workout here, no Discord
 //   dotnet run -- --prompt            print what would be sent to Claude (no API call, free)
+//   dotnet run -- --chat              chat with the coach here, no Discord
 // Add --sample to any of them to use fake data instead of Garmin.
 //
 // Settings come from .env (see .env.example).
@@ -18,11 +19,23 @@ Console.CancelKeyPress += (_, e) => { e.Cancel = true; cts.Cancel(); };
 IGarminSource source = args.Contains("--sample") ? new SampleSource() : new GarminSource();
 var data = new TrainingDataCache(source, maxAge: TimeSpan.FromHours(3));
 ICoachLlm llm = args.Contains("--prompt") ? new PrintPromptLlm() : new ClaudeClient(config.AnthropicModel);
-var coach = new Coach(data, llm, config);
+// --prompt answers are prompts, not coaching, so they never go into the saved history.
+var history = new ChatHistory(args.Contains("--prompt")
+    ? null
+    : Environment.GetEnvironmentVariable("CHAT_HISTORY_PATH") ?? Path.Combine("data", "chat-history.json"));
+var coach = new Coach(data, llm, config, history);
 
 if (args.Contains("--prompt") || args.Contains("--console"))
 {
     Console.WriteLine(await coach.TodayAsync(cts.Token));
+    return 0;
+}
+
+if (args.Contains("--chat"))
+{
+    Console.WriteLine("Chat with your coach (same history as Discord DMs). Empty line to quit.");
+    while (Console.ReadLine() is { Length: > 0 } line)
+        Console.WriteLine($"\n{await coach.ChatAsync(line, cts.Token)}\n");
     return 0;
 }
 

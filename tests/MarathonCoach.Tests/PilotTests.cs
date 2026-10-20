@@ -71,7 +71,7 @@ public class CoachTests
         var config = new Config("token", 1, null, Config.DefaultModel, PromptBuilder.DefaultGoal, "2027-04-18", "calf tight");
 
         var data = new TrainingDataCache(new SampleSource(), TimeSpan.FromHours(3));
-        var answer = await new Coach(data, llm, config).TodayAsync(CancellationToken.None);
+        var answer = await new Coach(data, llm, config, new ChatHistory(null)).TodayAsync(CancellationToken.None);
 
         Assert.Equal("Easy 8 km", answer);
         Assert.Equal(PromptBuilder.SystemPrompt, llm.System);

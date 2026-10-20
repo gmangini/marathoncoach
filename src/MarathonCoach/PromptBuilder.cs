@@ -13,12 +13,28 @@ public static class PromptBuilder
         phone, use km and min/km, be conservative when recovery looks poor, and never invent data you weren't given.
         """;
 
+    /// <summary>The /today request: the data plus the answer format.</summary>
     public static string Build(
+        IReadOnlyList<RunSummary> runs, IReadOnlyList<RecoveryDay> recovery, DateOnly today, Config config) =>
+        "Recommend ONE run for me today.\n\n" + DataBlock(runs, recovery, today, config) + """
+
+            Respond with:
+            1. Today's workout: type, distance/duration, target pace and/or HR range, and the structure if it's a quality session.
+            2. Why: 2-3 sentences referencing my recent load and recovery.
+            3. A "swap if" rule: when I should downgrade to easy or rest instead.
+
+            """;
+
+    /// <summary>A chat message: today's data first, then what I wrote. Only the message goes into history.</summary>
+    public static string Chat(TrainingData data, Config config, string message) =>
+        "My current training data (for context):\n\n" + DataBlock(data.Runs, data.Recovery, data.Today, config) +
+        "\nMy message: " + message;
+
+    /// <summary>Goal, weekly mileage, recent runs and recovery, as plain lines.</summary>
+    public static string DataBlock(
         IReadOnlyList<RunSummary> runs, IReadOnlyList<RecoveryDay> recovery, DateOnly today, Config config)
     {
         var sb = new StringBuilder();
-        sb.AppendLine("Recommend ONE run for me today.");
-        sb.AppendLine();
         sb.AppendLine($"Today: {today:yyyy-MM-dd} ({today.DayOfWeek})");
         sb.AppendLine($"Goal: {config.Goal}");
         sb.AppendLine($"Race date: {config.RaceDate}");
@@ -45,14 +61,6 @@ public static class PromptBuilder
             sb.AppendLine($"- {d.Date:yyyy-MM-dd}: sleep {d.SleepHours?.ToString("0.0") ?? "n/a"}h " +
                           $"(score {d.SleepScore?.ToString() ?? "n/a"}), HRV {d.HrvLastNight?.ToString() ?? "n/a"} " +
                           $"({d.HrvStatus ?? "n/a"}), resting HR {d.RestingHr?.ToString() ?? "n/a"}");
-
-        sb.AppendLine();
-        sb.AppendLine("""
-            Respond with:
-            1. Today's workout: type, distance/duration, target pace and/or HR range, and the structure if it's a quality session.
-            2. Why: 2-3 sentences referencing my recent load and recovery.
-            3. A "swap if" rule: when I should downgrade to easy or rest instead.
-            """);
         return sb.ToString();
     }
 }
