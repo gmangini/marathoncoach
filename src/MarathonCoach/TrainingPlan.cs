@@ -2,8 +2,10 @@ namespace MarathonCoach;
 
 public sealed record PaceZone(string Name, double FastSecPerKm, double SlowSecPerKm, string UsedFor)
 {
-    public override string ToString() =>
-        $"{Name}: {PaceZones.Format(FastSecPerKm)}-{PaceZones.Format(SlowSecPerKm)}/km ({UsedFor})";
+    public override string ToString() => Describe(DistanceUnit.Km);
+
+    public string Describe(DistanceUnit units) =>
+        $"{Name}: {UnitFormat.PaceRange(FastSecPerKm, SlowSecPerKm, units)} ({UsedFor})";
 }
 
 /// <summary>
@@ -26,7 +28,7 @@ public static class PaceZones
             new("Long run", mp * 1.08, mp * 1.15, "most of the long run"),
             new("Marathon pace", mp * 0.99, mp * 1.01, "goal-pace blocks"),
             new("Threshold", mp * 0.93, mp * 0.95, "tempo runs and cruise intervals"),
-            new("Interval", mp * 0.87, mp * 0.89, "800 m-1 km repeats"),
+            new("Interval", mp * 0.87, mp * 0.89, "800-1600 m repeats"),
         ];
     }
 
@@ -50,7 +52,7 @@ public static class TrainingPhase
         var phase = weeks switch
         {
             < 3 => "Taper: cut volume 30-50%, keep a little marathon-pace work, arrive fresh",
-            < 7 => "Peak: highest long runs (30-35 km with marathon-pace segments), volume at its top",
+            < 7 => "Peak: highest long runs (30-35 km / 19-22 mi with marathon-pace segments), volume at its top",
             < 13 => "Build: grow the long run, add marathon-pace and threshold work",
             _ => "Base: build volume gradually (about 10% a week at most), mostly easy, strides",
         };

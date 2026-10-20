@@ -97,7 +97,7 @@ public sealed class Coach(
         sb.AppendLine($"**Race:** {c.RaceName ?? "not set"}, {(c.RaceDay is { } r ? r.ToString("ddd d MMM yyyy") : "date not set")}");
         sb.AppendLine($"**Phase:** {TrainingPhase.Describe(today, c.RaceDay)}");
         sb.AppendLine("**Pace zones:**");
-        foreach (var zone in PaceZones.For(c.TargetTime)) sb.AppendLine($"- {zone}");
+        foreach (var zone in PaceZones.For(c.TargetTime)) sb.AppendLine($"- {zone.Describe(c.Units)}");
         return sb.ToString().TrimEnd();
     }
 

@@ -32,7 +32,7 @@ public sealed class SettingsStore
         {
             GoalTime = goalTime,
             // A goal set here replaces the .env goal sentence, which may quote other paces.
-            Goal = s.GoalTime is not null ? Config.DescribeGoal(goalTime ?? Config.DefaultGoalTime) : baseConfig.Goal,
+            Goal = s.GoalTime is not null ? Config.DescribeGoal(goalTime ?? Config.DefaultGoalTime, baseConfig.Units) : baseConfig.Goal,
             RaceDate = s.RaceDate ?? baseConfig.RaceDate,
             RaceName = s.RaceName ?? baseConfig.RaceName,
         };

@@ -10,7 +10,7 @@ public static class PromptBuilder
     public const string SystemPrompt = """
         You are an experienced marathon coach talking to one runner over Discord. You coach from their
         real Garmin training and recovery data, which they send you. Keep answers short enough to read on a
-        phone, use km and min/km, be conservative when recovery looks poor, and never invent data you weren't given.
+        phone, use the units given in the data (km or miles), be conservative when recovery looks poor, and never invent data you weren't given.
         """;
 
     /// <summary>The /today request: the data plus the answer format.</summary>
@@ -26,15 +26,20 @@ public static class PromptBuilder
             """;
 
     /// <summary>The /week request: a 7-day plan starting today, paces only from the zones.</summary>
-    public static string Week(TrainingData data, Config config) =>
-        "Plan my next 7 days, starting today.\n\n" + DataBlock(data.Runs, data.Recovery, data.Today, config) + """
+    public static string Week(TrainingData data, Config config)
+    {
+        var (example, unit) = config.Units == DistanceUnit.Miles
+            ? ("Tue 21 Oct: Threshold 6 mi: 1 mi easy, 4 x 1 mi @ 7:26-7:36/mi, 1 mi easy", "miles")
+            : ("Tue 21 Oct: Threshold 10 km: 2 km easy, 3 x 2 km @ 4:37-4:43/km, 2 km easy", "km");
+        return "Plan my next 7 days, starting today.\n\n" + DataBlock(data.Runs, data.Recovery, data.Today, config) + $"""
 
-            Respond with one line per day (e.g. "Tue 21 Oct: Threshold 10 km: 2 km easy, 3 x 2 km @ 4:38-4:44/km, 2 km easy"):
-            type, total km, and the pace range from my zones for every part. Include rest days.
+            Respond with one line per day (e.g. "{example}"):
+            type, total {unit}, and the pace range from my zones for every part. Include rest days.
             Fit the week to my phase and to what I actually ran in the last 7 days, and don't put two hard days back to back.
-            Then a weekly total in km and one sentence on the week's focus.
+            Then a weekly total in {unit} and one sentence on the week's focus.
 
             """;
+    }
 
     /// <summary>A chat message: today's data first, then what I wrote. Only the message goes into history.</summary>
     public static string Chat(TrainingData data, Config config, string message) =>
@@ -45,7 +50,9 @@ public static class PromptBuilder
     public static string DataBlock(
         IReadOnlyList<RunSummary> runs, IReadOnlyList<RecoveryDay> recovery, DateOnly today, Config config)
     {
+        var u = config.Units;
         var sb = new StringBuilder();
+        sb.AppendLine($"Units: {UnitFormat.Name(u)} (answer in these)");
         sb.AppendLine($"Today: {today:yyyy-MM-dd} ({today.DayOfWeek})");
         sb.AppendLine($"Goal: {config.Goal}");
         if (config.RaceName is { } race) sb.AppendLine($"Race: {race}");
@@ -54,7 +61,7 @@ public static class PromptBuilder
         sb.AppendLine();
         sb.AppendLine($"My pace zones (computed from a {config.TargetTime:h\\:mm\\:ss} goal; use these, don't invent others):");
         foreach (var zone in PaceZones.For(config.TargetTime))
-            sb.AppendLine($"- {zone}");
+            sb.AppendLine($"- {zone.Describe(u)}");
         sb.AppendLine();
         sb.AppendLine($"Notes from me: {config.Notes}");
         sb.AppendLine();
@@ -65,12 +72,12 @@ public static class PromptBuilder
             .GroupBy(r => (today.DayNumber - r.Date.DayNumber) / 7)
             .ToDictionary(g => g.Key, g => g.Sum(r => r.Km));
         for (var w = 0; w < TrainingData.Weeks; w++)
-            sb.AppendLine($"- {(w == 0 ? "last 7 days" : $"{w} wk ago")}: {kmByWeek.GetValueOrDefault(w):0.#} km");
+            sb.AppendLine($"- {(w == 0 ? "last 7 days" : $"{w} wk ago")}: {UnitFormat.Distance(kmByWeek.GetValueOrDefault(w), u)}");
 
         sb.AppendLine();
         sb.AppendLine("Recent runs (last 20):");
         foreach (var r in runs.OrderBy(r => r.Date).TakeLast(20))
-            sb.AppendLine($"- {r.Date:yyyy-MM-dd}: {r.Km:0.#} km in {r.DurationMin} min, {r.Pace}, " +
+            sb.AppendLine($"- {r.Date:yyyy-MM-dd}: {UnitFormat.Distance(r.Km, u)} in {r.DurationMin} min, {UnitFormat.ConvertPace(r.Pace, u)}, " +
                           $"avg HR {r.AvgHr?.ToString() ?? "n/a"}, aerobic TE {r.AerobicTe?.ToString("0.0") ?? "n/a"} ({r.Name})");
 
         sb.AppendLine();
