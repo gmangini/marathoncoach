@@ -23,18 +23,24 @@ public sealed class Bot(Config config, Coach coach)
 
     private async Task RegisterCommandsAsync()
     {
-        var today = new SlashCommandBuilder()
-            .WithName("today")
-            .WithDescription("Today's recommended workout")
-            .WithContextTypes(InteractionContextType.Guild, InteractionContextType.BotDm, InteractionContextType.PrivateChannel)
-            .Build();
+        ApplicationCommandProperties[] commands =
+        [
+            Command("today", "Today's recommended workout"),
+            Command("sync", "Re-read your Garmin data now"),
+        ];
 
         // A server command shows up at once; a global one can take a while the first time.
         if (config.GuildId is { } guildId && _client.GetGuild(guildId) is { } guild)
-            await guild.CreateApplicationCommandAsync(today);
+            await guild.BulkOverwriteApplicationCommandAsync(commands);
         else
-            await _client.CreateGlobalApplicationCommandAsync(today);
-        Console.WriteLine("Ready. Send /today in Discord. Ctrl+C to stop.");
+            await _client.BulkOverwriteGlobalApplicationCommandsAsync(commands);
+        Console.WriteLine("Ready. Send /today or /sync in Discord. Ctrl+C to stop.");
+
+        static ApplicationCommandProperties Command(string name, string description) => new SlashCommandBuilder()
+            .WithName(name)
+            .WithDescription(description)
+            .WithContextTypes(InteractionContextType.Guild, InteractionContextType.BotDm, InteractionContextType.PrivateChannel)
+            .Build();
     }
 
     private async Task OnSlashCommandAsync(SocketSlashCommand command)
@@ -52,6 +58,7 @@ public sealed class Bot(Config config, Coach coach)
             var answer = command.CommandName switch
             {
                 "today" => await coach.TodayAsync(CancellationToken.None),
+                "sync" => await coach.SyncAsync(CancellationToken.None),
                 _ => "Unknown command.",
             };
             foreach (var chunk in DiscordText.Split(answer))

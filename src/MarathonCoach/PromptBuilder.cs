@@ -26,11 +26,12 @@ public static class PromptBuilder
         sb.AppendLine();
 
         sb.AppendLine("Weekly mileage (most recent first):");
-        var weekly = runs
+        // Every week is listed, including empty ones: a 0 km week is information the coach needs.
+        var kmByWeek = runs
             .GroupBy(r => (today.DayNumber - r.Date.DayNumber) / 7)
-            .OrderBy(g => g.Key);
-        foreach (var w in weekly)
-            sb.AppendLine($"- {(w.Key == 0 ? "last 7 days" : $"{w.Key} wk ago")}: {w.Sum(r => r.Km):0.#} km");
+            .ToDictionary(g => g.Key, g => g.Sum(r => r.Km));
+        for (var w = 0; w < TrainingData.Weeks; w++)
+            sb.AppendLine($"- {(w == 0 ? "last 7 days" : $"{w} wk ago")}: {kmByWeek.GetValueOrDefault(w):0.#} km");
 
         sb.AppendLine();
         sb.AppendLine("Recent runs (last 20):");

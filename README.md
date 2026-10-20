@@ -17,12 +17,16 @@ and [PLAN.md](PLAN.md) for progress.
 ## Run
 
 ```powershell
-dotnet run --project src/MarathonCoach -- --sample --console   # sample data, answer printed here (no Discord)
-dotnet run --project src/MarathonCoach -- --sample             # bot on sample data
-dotnet run --project src/MarathonCoach                         # bot on your Garmin data
+dotnet run --project src/MarathonCoach                # Discord bot on your Garmin data
+dotnet run --project src/MarathonCoach -- --console   # today's workout printed here, no Discord
+dotnet run --project src/MarathonCoach -- --prompt    # what would be sent to Claude (free, no API call)
 ```
 
-In Discord: `/today`. Only the user in `DISCORD_OWNER_ID` gets an answer.
+Add `--sample` to any of them to use fake data instead of Garmin.
+
+In Discord: `/today` for the workout, `/sync` to re-read Garmin now (data otherwise refreshes after
+3 hours or on a new day). Only the user in `DISCORD_OWNER_ID` gets an answer. If Garmin asks for a 2FA
+code, the bot asks for it in its console window at startup.
 
 ## Test
 
