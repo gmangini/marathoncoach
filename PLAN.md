@@ -11,7 +11,7 @@ Spec: [SPEC.md](SPEC.md) · Stack: .NET 8, Discord.Net, Anthropic SDK, xUnit
 | S3 | DM chat with Claude, history persisted | AC-3 | done | 70f0d89 |
 | S4 | `/week` plan with code-computed pace zones; morning DM; goal from chat | AC-4, AC-5, AC-8 | done | ad56b8a |
 | S5 | Strava merge (optional) | AC-6 | todo | |
-| S6 | Always on: container on a small cloud server | AC-9 | building | 6affb08 |
+| S6 | Always on: container on a small cloud server | AC-9 | paused (packaged, not deployed) | 6affb08 |
 
 Status is one of `todo`, `building`, `review`, `done`.
 
@@ -59,6 +59,9 @@ Status is one of `todo`, `building`, `review`, `done`.
   deploy dry run lists every step
 - **Run it:** `pwsh scripts/Deploy-Server.ps1 -Server root@<ip> -CopySecrets -Apply`
 - **Done when:** the bot answers from the server with the PC off, and the morning DM arrives on time.
+- **Paused 2026-10-19. Resume here:** create the VPS (Ubuntu 24.04, your SSH key), install Docker, then
+  `pwsh scripts/Deploy-Server.ps1 -Server root@<ip> -CopySecrets -Apply` and stop the PC copy. No SSH key exists on
+  the PC yet (`ssh-keygen -t ed25519`).
 
 ## Gaps
 - none
