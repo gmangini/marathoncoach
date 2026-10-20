@@ -11,6 +11,7 @@ Spec: [SPEC.md](SPEC.md) · Stack: .NET 8, Discord.Net, Anthropic SDK, xUnit
 | S3 | DM chat with Claude, history persisted | AC-3 | done | 70f0d89 |
 | S4 | `/week` plan with code-computed pace zones; morning DM; goal from chat | AC-4, AC-5, AC-8 | done | ad56b8a |
 | S5 | Strava merge (optional) | AC-6 | todo | |
+| S6 | Always on: container on a small cloud server | AC-9 | building | 6affb08 |
 
 Status is one of `todo`, `building`, `review`, `done`.
 
@@ -47,6 +48,17 @@ Status is one of `todo`, `building`, `review`, `done`.
 - **Added mid-slice (user request):** set goal time, race date and race name from chat (AC-8 below).
 - **Run it:** `/week`, `/goal`, or DM "aim for 3:25 at St George on 2027-10-02"
 - **Done when:** tests pass and you tried `/week`, `/goal` and a goal change by DM.
+
+## S6: Always on (cloud server)
+- **Files:** `Dockerfile` (Debian .NET 8 runtime, non-root, `/app/data` volume), `compose.yaml` (restart
+  unless-stopped, `.env` at run time), `.dockerignore`, `.gitattributes` (LF), `scripts/Deploy-Server.ps1`
+  (dry run by default; ships only HEAD; `-CopySecrets` copies `.env` + Garmin token into the volume),
+  `GarminSource.cs` (`GARMIN_TOKEN_PATH`, clear error when 2FA has no console), `Program.cs` (one copy per
+  machine, logs time zone)
+- **Checks:** image has no `.env`/token/history; `TZ=America/Denver` gives Mountain time; volume writable by `app`;
+  deploy dry run lists every step
+- **Run it:** `pwsh scripts/Deploy-Server.ps1 -Server root@<ip> -CopySecrets -Apply`
+- **Done when:** the bot answers from the server with the PC off, and the morning DM arrives on time.
 
 ## Gaps
 - none

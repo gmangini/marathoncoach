@@ -1,0 +1,11 @@
+.env
+.env.*
+!.env.example
+data/
+**/bin/
+**/obj/
+tests/
+.git/
+.vs/
+*.user
+*token*.json

@@ -18,18 +18,19 @@ Just me, through Discord (phone or desktop). The bot runs on my Windows PC.
 - [ ] AC-6: Given Strava credentials in `.env`, when the bot loads data, then Strava runs missing from Garmin are added and a session in both is counted once.
 - [ ] AC-7: Given a message or command from any Discord user other than the owner ID in `.env`, when the bot receives it, then it replies with no data and makes no LLM call.
 - [ ] AC-8: Given the bot is running, when I tell it a new goal time, race date or race name by DM or with `/goal`, then it checks and saves them (surviving a restart), replies with the new pace zones, and later plans use them.
+- [ ] AC-9: Given the bot is deployed to my cloud server, when my PC is off, then DMs, slash commands and the morning DM (in my time zone) still work, and chat history, goal settings and the Garmin login survive a redeploy.
 
 ## Non-goals (not in this version)
 - Pushing workouts to the watch or to Garmin's calendar
-- A web UI, multiple users, cloud hosting
+- A web UI, multiple users
 - Cycling or swimming plans
 
 ## Constraints
-- Data: personal health data stays on this PC and goes only to the Anthropic API in prompts.
-- Cost: Anthropic API, pay per call (default model `claude-sonnet-5-5`, changeable in `.env`). Discord and Garmin are free.
+- Data: personal health data stays on my own machines (this PC and my own cloud server) and goes only to the Anthropic API in prompts. Secrets live in the server's `.env`, never in the image or git.
+- Cost: Anthropic API, pay per call (default model `claude-sonnet-5-5`, changeable in `.env`). Discord and Garmin are free. Cloud server about $5/month.
 - Garmin: no official personal API; uses the unofficial `Unofficial.Garmin.Connect` package, which can break.
 - Strava: the API agreement restricts AI use; AC-6 is optional and last.
-- Platform: Windows, .NET 8.
+- Platform: .NET 8; runs on Windows for development and in a Linux container on a small cloud server (always on, for phone use).
 
 ## Stack
 `other`: .NET 8 console host + Discord.Net + Anthropic SDK + xUnit, extending the ironmancoach code.

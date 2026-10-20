@@ -1,0 +1,12 @@
+# On the server: docker compose up -d --build   (logs: docker compose logs -f bot)
+services:
+  bot:
+    build: .
+    image: marathoncoach:latest
+    env_file: .env          # the server's own .env (same names as .env.example), never committed
+    restart: unless-stopped # comes back after a crash or a server reboot
+    volumes:
+      - coach-data:/app/data
+
+volumes:
+  coach-data: {}

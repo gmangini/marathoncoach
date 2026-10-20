@@ -51,6 +51,18 @@ if (config.DiscordToken is null || config.OwnerId == 0)
     return 1;
 }
 
+// Two copies of the bot (say, your PC and the server) would both answer every DM. This stops a second one on the
+// same machine; across machines, stop one yourself (see README).
+using var single = new Mutex(initiallyOwned: true, @"Global\MarathonCoach.Bot", out var first);
+if (!first)
+{
+    Console.Error.WriteLine("Another copy of the bot is already running on this machine. Stop it first.");
+    return 2;
+}
+
+// On a server the clock is UTC unless TZ is set; the morning DM and "today" follow this zone.
+Console.WriteLine($"Time zone: {TimeZoneInfo.Local.Id}, local time {DateTime.Now:yyyy-MM-dd HH:mm}");
+
 // Load the data before going online, so a Garmin 2FA prompt or login error shows here at startup.
 Console.WriteLine("Loading training data...");
 Console.WriteLine(await coach.SyncAsync(cts.Token));

@@ -20,7 +20,8 @@ public sealed class GarminSource : IGarminSource
             ?? throw new InvalidOperationException("Set the GARMIN_PASSWORD environment variable");
 
         // Tokens are cached so you don't do a full login (and risk Garmin rate limiting) every run.
-        var tokenPath = Path.Combine(
+        // On the server this points into the data volume; the file is copied there from the PC (no 2FA prompt there).
+        var tokenPath = Environment.GetEnvironmentVariable("GARMIN_TOKEN_PATH") is { Length: > 0 } p ? p : Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".marathoncoach-garmin-token.json");
 
         var context = new GarminConnectContext(
@@ -112,6 +113,11 @@ public sealed class ConsoleMfaCode : IMfaCodeProvider
     public Task<string> GetMfaCodeAsync()
     {
         Console.Write("Garmin MFA code: ");
-        return Task.FromResult((Console.ReadLine() ?? "").Trim());
+        // On a server there is no one to type the code, so say what to do instead of failing on an empty code.
+        return Console.ReadLine() is { Length: > 0 } code
+            ? Task.FromResult(code.Trim())
+            : throw new InvalidOperationException(
+                "Garmin asked for a 2FA code but there is no console to type it. Log in once on your PC " +
+                "(dotnet run -- --prompt), then copy the token file to the server (see README, 'Cloud server').");
     }
 }

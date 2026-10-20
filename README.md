@@ -40,10 +40,36 @@ Set `MORNING_TIME=06:30` in `.env` for a daily DM with that day's workout (the b
 To DM the bot, click its name in your server's member list and send a message. Only the user in `DISCORD_OWNER_ID` gets an answer. If Garmin asks for a 2FA
 code, the bot asks for it in its console window at startup.
 
+## Cloud server (always on, for your phone)
+
+The bot runs as a Docker container on a small Linux VPS (Hetzner CX22 or a DigitalOcean $6 droplet).
+Secrets come from the server's own `.env`; chat history, goal settings and the Garmin token live in the
+`coach-data` Docker volume, so they survive redeploys. The image itself holds no secrets.
+
+**Once:**
+1. Create the server: Ubuntu 24.04, the smallest size is plenty, a US region, and add your SSH public key
+   (`type $HOME\.ssh\id_ed25519.pub`; make one with `ssh-keygen -t ed25519` if you have none).
+2. Install Docker on it: `ssh root@<ip> "curl -fsSL https://get.docker.com | sh"`.
+3. Make sure the bot has logged in to Garmin on this PC once (it saves `%USERPROFILE%\.marathoncoach-garmin-token.json`).
+   The server can't answer a 2FA prompt, so it uses this token.
+4. Deploy with secrets: `pwsh scripts/Deploy-Server.ps1 -Server root@<ip> -CopySecrets -Apply`
+   (without `-Apply` it only shows what it would do). It adds `TZ=America/Denver` to the server's `.env`
+   if missing, so "today" and `MORNING_TIME` follow your time zone; pass `-TimeZone` to change it.
+5. **Stop the bot on your PC**: two running copies would both answer every DM.
+
+**After a code change:** commit, then `pwsh scripts/Deploy-Server.ps1 -Server root@<ip> -Apply`
+(only committed code ships).
+
+**On the server:** `cd ~/marathoncoach`, then `docker compose logs -f bot` (logs),
+`docker compose restart bot`, `docker compose down` (stop). It restarts by itself after a crash or reboot.
+
+If Garmin ever asks for 2FA again, the log says so: run the bot on your PC once, then redeploy with `-CopySecrets`.
+
 ## Test
 
 ```powershell
 dotnet test
+podman build -t marathoncoach:test .   # or docker build
 ```
 
 ## Notes
