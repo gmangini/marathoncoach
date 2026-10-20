@@ -17,6 +17,7 @@ Just me, through Discord (phone or desktop). The bot runs on my Windows PC.
 - [ ] AC-5: Given a morning time in `.env`, when that time arrives, then the bot DMs me today's workout.
 - [ ] AC-6: Given Strava credentials in `.env`, when the bot loads data, then Strava runs missing from Garmin are added and a session in both is counted once.
 - [ ] AC-7: Given a message or command from any Discord user other than the owner ID in `.env`, when the bot receives it, then it replies with no data and makes no LLM call.
+- [ ] AC-8: Given the bot is running, when I tell it a new goal time, race date or race name by DM or with `/goal`, then it checks and saves them (surviving a restart), replies with the new pace zones, and later plans use them.
 
 ## Non-goals (not in this version)
 - Pushing workouts to the watch or to Garmin's calendar

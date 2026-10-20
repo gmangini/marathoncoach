@@ -25,6 +25,17 @@ public static class PromptBuilder
 
             """;
 
+    /// <summary>The /week request: a 7-day plan starting today, paces only from the zones.</summary>
+    public static string Week(TrainingData data, Config config) =>
+        "Plan my next 7 days, starting today.\n\n" + DataBlock(data.Runs, data.Recovery, data.Today, config) + """
+
+            Respond with one line per day (e.g. "Tue 21 Oct: Threshold 10 km: 2 km easy, 3 x 2 km @ 4:38-4:44/km, 2 km easy"):
+            type, total km, and the pace range from my zones for every part. Include rest days.
+            Fit the week to my phase and to what I actually ran in the last 7 days, and don't put two hard days back to back.
+            Then a weekly total in km and one sentence on the week's focus.
+
+            """;
+
     /// <summary>A chat message: today's data first, then what I wrote. Only the message goes into history.</summary>
     public static string Chat(TrainingData data, Config config, string message) =>
         "My current training data (for context):\n\n" + DataBlock(data.Runs, data.Recovery, data.Today, config) +
@@ -37,7 +48,14 @@ public static class PromptBuilder
         var sb = new StringBuilder();
         sb.AppendLine($"Today: {today:yyyy-MM-dd} ({today.DayOfWeek})");
         sb.AppendLine($"Goal: {config.Goal}");
+        if (config.RaceName is { } race) sb.AppendLine($"Race: {race}");
         sb.AppendLine($"Race date: {config.RaceDate}");
+        sb.AppendLine($"Phase: {TrainingPhase.Describe(today, config.RaceDay)}");
+        sb.AppendLine();
+        sb.AppendLine($"My pace zones (computed from a {config.TargetTime:h\\:mm\\:ss} goal; use these, don't invent others):");
+        foreach (var zone in PaceZones.For(config.TargetTime))
+            sb.AppendLine($"- {zone}");
+        sb.AppendLine();
         sb.AppendLine($"Notes from me: {config.Notes}");
         sb.AppendLine();
 

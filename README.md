@@ -28,7 +28,15 @@ Add `--sample` to any of them to use fake data instead of Garmin.
 In Discord, **DM the bot** in plain words to chat ("legs are trashed, swap tomorrow?"). Claude sees your
 current data and the last 10 exchanges; the conversation is saved in `data/chat-history.json`
 (git-ignored) and survives restarts. Commands: `/today` for the workout, `/sync` to re-read Garmin now
-(data otherwise refreshes after 3 hours or on a new day), `/reset` to forget the chat.
+(data otherwise refreshes after 3 hours or on a new day), `/reset` to forget the chat, `/week` for a
+7-day plan, `/goal` to show or change your goal time, race date and race name.
+
+You can also change the goal in a DM in plain words ("I signed up for St George on Oct 3 2027, aiming for
+3:25"). The values are checked in code and saved in `data/coach-settings.json` (git-ignored), and saved
+values win over `.env`. Pace zones (easy, long, marathon, threshold, interval) are computed from the goal
+time, never guessed by Claude.
+
+Set `MORNING_TIME=06:30` in `.env` for a daily DM with that day's workout (the bot must be running).
 To DM the bot, click its name in your server's member list and send a message. Only the user in `DISCORD_OWNER_ID` gets an answer. If Garmin asks for a 2FA
 code, the bot asks for it in its console window at startup.
 

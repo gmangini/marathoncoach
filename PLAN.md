@@ -9,7 +9,7 @@ Spec: [SPEC.md](SPEC.md) · Stack: .NET 8, Discord.Net, Anthropic SDK, xUnit
 | S1 | Pilot: `/today` in Discord answers from sample data + Claude, owner-only | AC-1, AC-7 | done | (first commit) |
 | S2 | Real Garmin data behind `/today`, `/sync` refresh | AC-2 | done | 0aae960 → 70f0d89 |
 | S3 | DM chat with Claude, history persisted | AC-3 | done | 70f0d89 |
-| S4 | `/week` plan with code-computed pace zones; morning DM | AC-4, AC-5 | building | S3 commit |
+| S4 | `/week` plan with code-computed pace zones; morning DM; goal from chat | AC-4, AC-5, AC-8 | done | ad56b8a |
 | S5 | Strava merge (optional) | AC-6 | todo | |
 
 Status is one of `todo`, `building`, `review`, `done`.
@@ -36,6 +36,17 @@ Status is one of `todo`, `building`, `review`, `done`.
   history + data + message, saves only the message, `/today` feeds follow-ups, reset
 - **Run it:** `dotnet run --project src/MarathonCoach -- --chat`, then DM the bot
 - **Done when:** tests pass and a DM conversation remembers context after a restart.
+
+## S4: Weekly plan, morning DM, goal from chat
+- **Files:** `TrainingPlan.cs` (pace zones from goal time, phase from race date, morning schedule),
+  `CoachSettings.cs` (goal/race saved from Discord, validated, wins over `.env`), `Coach.cs` (`WeekAsync`,
+  `MorningAsync`, `update_goal` tool, `SetGoal`), `ClaudeClient.cs` (one strict tool, call returned not answered),
+  `Bot.cs` (`/week`, `/goal`, morning loop), `Config.cs` (`GOAL_TIME`, `RACE_NAME`, `MORNING_TIME`)
+- **Tests:** `PlanTests.cs` (zones for 3:30, phases, schedule, week prompt), `GoalSettingsTests.cs` (parsing,
+  validation, all-or-nothing, persistence, tool call saves and shows new zones, invalid call saves nothing)
+- **Added mid-slice (user request):** set goal time, race date and race name from chat (AC-8 below).
+- **Run it:** `/week`, `/goal`, or DM "aim for 3:25 at St George on 2027-10-02"
+- **Done when:** tests pass and you tried `/week`, `/goal` and a goal change by DM.
 
 ## Gaps
 - none

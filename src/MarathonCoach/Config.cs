@@ -3,18 +3,37 @@ namespace MarathonCoach;
 /// <summary>Settings from environment variables, after loading the repo's .env file.</summary>
 public sealed record Config(
     string? DiscordToken, ulong OwnerId, ulong? GuildId,
-    string AnthropicModel, string Goal, string RaceDate, string Notes)
+    string AnthropicModel, string Goal, string RaceDate, string Notes,
+    TimeSpan? GoalTime = null, TimeOnly? MorningTime = null, string? RaceName = null)
 {
     public const string DefaultModel = "claude-sonnet-5-5";
+    public static readonly TimeSpan DefaultGoalTime = new(3, 30, 0);
 
-    public static Config FromEnvironment() => new(
-        Env("DISCORD_BOT_TOKEN"),
-        ulong.TryParse(Env("DISCORD_OWNER_ID"), out var owner) ? owner : 0,
-        ulong.TryParse(Env("DISCORD_GUILD_ID"), out var guild) ? guild : null,
-        Env("ANTHROPIC_MODEL") ?? DefaultModel,
-        Env("COACH_GOAL") ?? PromptBuilder.DefaultGoal,
-        Env("RACE_DATE") ?? "not set yet",
-        Env("RUN_NOTES") ?? "none");
+    /// <summary>The goal marathon time the pace zones come from (GOAL_TIME, default 3:30:00).</summary>
+    public TimeSpan TargetTime => GoalTime ?? DefaultGoalTime;
+
+    /// <summary>RACE_DATE as a date, or null when it is unset or not yyyy-MM-dd.</summary>
+    public DateOnly? RaceDay => DateOnly.TryParseExact(RaceDate, "yyyy-MM-dd", out var d) ? d : null;
+
+    public static Config FromEnvironment()
+    {
+        TimeSpan? goalTime = TimeSpan.TryParse(Env("GOAL_TIME"), out var g) && g > TimeSpan.FromHours(2) ? g : null;
+        return new(
+            Env("DISCORD_BOT_TOKEN"),
+            ulong.TryParse(Env("DISCORD_OWNER_ID"), out var owner) ? owner : 0,
+            ulong.TryParse(Env("DISCORD_GUILD_ID"), out var guild) ? guild : null,
+            Env("ANTHROPIC_MODEL") ?? DefaultModel,
+            Env("COACH_GOAL") ?? DescribeGoal(goalTime ?? DefaultGoalTime),
+            Env("RACE_DATE") ?? "not set yet",
+            Env("RUN_NOTES") ?? "none",
+            goalTime,
+            TimeOnly.TryParse(Env("MORNING_TIME"), out var morning) ? morning : null,
+            Env("RACE_NAME"));
+    }
+
+    /// <summary>"Marathon in 3:30:00 (goal pace ~4:58/km)".</summary>
+    public static string DescribeGoal(TimeSpan goal) =>
+        $"Marathon in {goal:h\\:mm\\:ss} (goal pace ~{PaceZones.Format(PaceZones.MarathonPace(goal))}/km)";
 
     private static string? Env(string name) =>
         Environment.GetEnvironmentVariable(name) is { Length: > 0 } v ? v : null;

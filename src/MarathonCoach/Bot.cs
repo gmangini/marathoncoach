@@ -24,9 +24,49 @@ public sealed class Bot(Config config, Coach coach)
 
         await _client.LoginAsync(TokenType.Bot, config.DiscordToken);
         await _client.StartAsync();
-        try { await Task.Delay(Timeout.Infinite, ct); }
+        try
+        {
+            if (config.MorningTime is { } at) await MorningLoopAsync(at, ct);
+            else await Task.Delay(Timeout.Infinite, ct);
+        }
         catch (OperationCanceledException) { }
         await _client.StopAsync();
+    }
+
+    /// <summary>
+    /// DMs today's workout once a day at <paramref name="at"/>. Checks the clock every minute rather than sleeping
+    /// until the time, so a PC that slept through it still sends when it wakes (same day only).
+    /// </summary>
+    private async Task MorningLoopAsync(TimeOnly at, CancellationToken ct)
+    {
+        var next = MorningSchedule.NextRun(DateTime.Now, at);
+        Console.WriteLine($"Morning DM scheduled for {next:ddd HH:mm}.");
+        while (true)
+        {
+            await Task.Delay(TimeSpan.FromMinutes(1), ct);
+            var now = DateTime.Now;
+            if (now < next) continue;
+
+            if (now.Date == next.Date) await SendMorningAsync();
+            next = MorningSchedule.NextRun(now, at);
+            Console.WriteLine($"Next morning DM: {next:ddd HH:mm}.");
+        }
+    }
+
+    private async Task SendMorningAsync()
+    {
+        try
+        {
+            var owner = await _client.GetUserAsync(config.OwnerId);
+            var answer = await coach.MorningAsync(CancellationToken.None);
+            foreach (var chunk in DiscordText.Split(answer))
+                await owner.SendMessageAsync(chunk);
+            Console.WriteLine($"[bot] morning DM sent {DateTime.Now:HH:mm}");
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"[bot] morning DM failed: {ex}");
+        }
     }
 
     private async Task RegisterCommandsAsync()
@@ -34,8 +74,17 @@ public sealed class Bot(Config config, Coach coach)
         ApplicationCommandProperties[] commands =
         [
             Command("today", "Today's recommended workout"),
+            Command("week", "Your plan for the next 7 days"),
             Command("sync", "Re-read your Garmin data now"),
             Command("reset", "Forget our chat history"),
+            new SlashCommandBuilder()
+                .WithName("goal")
+                .WithDescription("Show or change your goal time and race (leave all empty to show)")
+                .AddOption("time", ApplicationCommandOptionType.String, "Goal finish time, e.g. 3:25:00", isRequired: false)
+                .AddOption("race_date", ApplicationCommandOptionType.String, "Race day as yyyy-MM-dd", isRequired: false)
+                .AddOption("race_name", ApplicationCommandOptionType.String, "Race name", isRequired: false)
+                .WithContextTypes(InteractionContextType.Guild, InteractionContextType.BotDm, InteractionContextType.PrivateChannel)
+                .Build(),
         ];
 
         // A server command shows up at once; a global one can take a while the first time.
@@ -56,7 +105,7 @@ public sealed class Bot(Config config, Coach coach)
         }
         else
             await _client.BulkOverwriteGlobalApplicationCommandsAsync(commands);
-        Console.WriteLine("Ready. DM the bot, or send /today, /sync or /reset in Discord. Ctrl+C to stop.");
+        Console.WriteLine("Ready. DM the bot, or send /today, /week, /goal, /sync or /reset in Discord. Ctrl+C to stop.");
 
         static ApplicationCommandProperties Command(string name, string description) => new SlashCommandBuilder()
             .WithName(name)
@@ -80,8 +129,11 @@ public sealed class Bot(Config config, Coach coach)
             var answer = command.CommandName switch
             {
                 "today" => await coach.TodayAsync(CancellationToken.None),
+                "week" => await coach.WeekAsync(CancellationToken.None),
                 "sync" => await coach.SyncAsync(CancellationToken.None),
                 "reset" => coach.Reset(),
+                "goal" => coach.SetGoal(Option("time"), Option("race_date"), Option("race_name"),
+                    DateOnly.FromDateTime(DateTime.Today)),
                 _ => "Unknown command.",
             };
             foreach (var chunk in DiscordText.Split(answer))
@@ -92,6 +144,8 @@ public sealed class Bot(Config config, Coach coach)
             Console.Error.WriteLine($"[bot] {command.CommandName} failed: {ex}");
             await command.FollowupAsync($"Something went wrong: {ex.GetType().Name}. Details are in the bot's console.");
         }
+
+        string? Option(string name) => command.Data.Options.FirstOrDefault(o => o.Name == name)?.Value as string;
     }
 
     private async Task OnMessageAsync(SocketMessage message)

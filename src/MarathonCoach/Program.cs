@@ -6,6 +6,7 @@ using MarathonCoach;
 //   dotnet run -- --console           print today's workout here, no Discord
 //   dotnet run -- --prompt            print what would be sent to Claude (no API call, free)
 //   dotnet run -- --chat              chat with the coach here, no Discord
+//   add --week to --console or --prompt for the 7-day plan
 // Add --sample to any of them to use fake data instead of Garmin.
 //
 // Settings come from .env (see .env.example).
@@ -23,11 +24,16 @@ ICoachLlm llm = args.Contains("--prompt") ? new PrintPromptLlm() : new ClaudeCli
 var history = new ChatHistory(args.Contains("--prompt")
     ? null
     : Environment.GetEnvironmentVariable("CHAT_HISTORY_PATH") ?? Path.Combine("data", "chat-history.json"));
-var coach = new Coach(data, llm, config, history);
+var settings = new SettingsStore(Path.Combine("data", "coach-settings.json"));
+var coach = new Coach(data, llm, config, history, settings);
+
+if (coach.Config.RaceDate != "not set yet" && coach.Config.RaceDay is null)
+    Console.Error.WriteLine($"RACE_DATE '{coach.Config.RaceDate}' isn't a yyyy-MM-dd date, so it's ignored.");
 
 if (args.Contains("--prompt") || args.Contains("--console"))
 {
-    Console.WriteLine(await coach.TodayAsync(cts.Token));
+    // Add --week for the 7-day plan instead of today's workout.
+    Console.WriteLine(args.Contains("--week") ? await coach.WeekAsync(cts.Token) : await coach.TodayAsync(cts.Token));
     return 0;
 }
 
