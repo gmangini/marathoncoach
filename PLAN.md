@@ -7,11 +7,11 @@ Spec: [SPEC.md](SPEC.md) · Stack: .NET 8, Discord.Net, Anthropic SDK, xUnit
 | Id | Goal (what the user can do after it) | ACs | Status | Base commit |
 |---|---|---|---|---|
 | S1 | Pilot: `/today` in Discord answers from sample data + Claude, owner-only | AC-1, AC-7 | done | (first commit) |
-| S2 | Real Garmin data behind `/today`, `/sync` refresh | AC-2 | done | 0aae960 → 70f0d89 |
-| S3 | DM chat with Claude, history persisted | AC-3 | done | 70f0d89 |
-| S4 | `/week` plan with code-computed pace zones; morning DM; goal from chat | AC-4, AC-5, AC-8 | done | ad56b8a |
+| S2 | Real Garmin data behind `/today`, `/sync` refresh | AC-2 | done | 81ed5c9 → 7bb37eb |
+| S3 | DM chat with Claude, history persisted | AC-3 | done | 7bb37eb |
+| S4 | `/week` plan with code-computed pace zones; morning DM; goal from chat | AC-4, AC-5, AC-8 | done | 3ba0c50 |
 | S5 | Strava merge (optional) | AC-6 | todo | |
-| S6 | Always on: container on a small cloud server | AC-9 | paused (packaged, not deployed) | 6affb08 |
+| S6 | Always on: container on a small cloud server | AC-9 | paused (packaged, not deployed) | 0219eca |
 
 Status is one of `todo`, `building`, `review`, `done`.
 
