@@ -5,7 +5,7 @@ public sealed record Config(
     string? DiscordToken, ulong OwnerId, ulong? GuildId,
     string AnthropicModel, string Goal, string RaceDate, string Notes,
     TimeSpan? GoalTime = null, TimeOnly? MorningTime = null, string? RaceName = null,
-    DistanceUnit Units = DistanceUnit.Km)
+    DistanceUnit Units = DistanceUnit.Km, int RunCheckMinutes = 30)
 {
     public const string DefaultModel = "claude-sonnet-5-5";
     public static readonly TimeSpan DefaultGoalTime = new(3, 30, 0);
@@ -31,7 +31,8 @@ public sealed record Config(
             goalTime,
             TimeOnly.TryParse(Env("MORNING_TIME"), out var morning) ? morning : null,
             Env("RACE_NAME"),
-            units);
+            units,
+            int.TryParse(Env("RUN_CHECK_MINUTES"), out var every) && every >= 0 ? every : 30);
     }
 
     /// <summary>"Marathon in 3:30:00 (goal pace ~4:58/km)", or "~8:00/mi" in miles.</summary>

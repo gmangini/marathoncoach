@@ -40,4 +40,13 @@ public sealed class TrainingDataCache(IGarminSource source, TimeSpan maxAge, Tim
         }
         finally { _lock.Release(); }
     }
+
+    /// <summary>Just the runs of the last <paramref name="days"/> days: one light Garmin call for the run watcher.</summary>
+    public Task<IReadOnlyList<RunSummary>> RecentRunsAsync(int days, CancellationToken ct)
+    {
+        var today = DateOnly.FromDateTime(_clock.GetLocalNow().DateTime);
+        return source.GetRunsAsync(today.AddDays(-(days - 1)), today, ct);
+    }
+
+    public Task<RunDetail> GetRunDetailAsync(RunSummary run, CancellationToken ct) => source.GetRunDetailAsync(run, ct);
 }

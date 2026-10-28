@@ -12,6 +12,7 @@ Spec: [SPEC.md](SPEC.md) · Stack: .NET 8, Discord.Net, Anthropic SDK, xUnit
 | S4 | `/week` plan with code-computed pace zones; morning DM; goal from chat | AC-4, AC-5, AC-8 | done | 3ba0c50 |
 | S5 | Strava merge (optional) | AC-6 | todo | |
 | S6 | Always on: container on a small cloud server | AC-9 | paused (packaged, not deployed) | 0219eca |
+| S7 | Feedback after each run (watcher + review DM, `/review`) | AC-10 | done | a56e6b6 |
 
 Status is one of `todo`, `building`, `review`, `done`.
 
@@ -62,6 +63,17 @@ Status is one of `todo`, `building`, `review`, `done`.
 - **Paused 2026-10-19. Resume here:** create the VPS (Ubuntu 24.04, your SSH key), install Docker, then
   `pwsh scripts/Deploy-Server.ps1 -Server root@<ip> -CopySecrets -Apply` and stop the PC copy. No SSH key exists on
   the PC yet (`ssh-keygen -t ed25519`).
+
+## S7: Feedback after each run
+- **Files:** `RunReview.cs` (heart-rate drift from laps, reviewed-runs and plan stores), `Models.cs` (activity id,
+  laps, HR zones), `GarminSource.cs` (splits + HR-in-zones), `SampleSource.cs` (sample laps), `TrainingData.cs`
+  (light recent-runs check), `Coach.cs` (`CheckNewRunsAsync`, `ReviewLatestAsync`, plans saved), `PromptBuilder.cs`
+  (`RunReview`), `Bot.cs` (watch loop, `/review`), `Config.cs` (`RUN_CHECK_MINUTES`), `Program.cs` (`--review`)
+- **Tests:** `RunReviewTests.cs`: drift values and when it is skipped, stores (first-start, restart, ordering,
+  day vs week plan), watcher (one review per run, plan in prompt, retry after a failed review, `/review`)
+- **Checked on real data:** `--prompt --review` on the Oct 23 run: laps in miles, -3.1% drift, zones
+- **Run it:** `/review`, then go for a run and wait for the DM
+- **Done when:** tests pass, `/review` works, and a real run gets a review DM by itself.
 
 ## Gaps
 - none

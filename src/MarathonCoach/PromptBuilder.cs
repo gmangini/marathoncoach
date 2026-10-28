@@ -41,6 +41,23 @@ public static class PromptBuilder
             """;
     }
 
+    /// <summary>The after-run review: the run (laps, drift, zones), what was planned, then the usual data.</summary>
+    public static string RunReview(RunDetail run, PlanEntry? plan, TrainingData data, Config config)
+    {
+        var planned = plan is null
+            ? "No plan was recorded for that day: judge the run against the zone that fits what it looks like it was meant to be."
+            : $"What you recommended for that day (from {(plan.Kind == PlanStore.Day ? "/today" : $"the /week plan of {plan.Date:ddd d MMM}")}):\n{plan.Text}";
+        return "I just finished a run. Review it.\n\n" + RunAnalysis.Describe(run, config.Units) + "\n" + planned + "\n\n" +
+               DataBlock(data.Runs, data.Recovery, data.Today, config) + """
+
+            Respond in at most 6 short lines, for a phone:
+            1. Plan: did I do what was planned and stay in the right pace zone? Name the zone.
+            2. Effort: what my heart rate says (use the computed drift and time in zones; don't recompute them).
+            3. Tomorrow: one concrete suggestion (type, distance, pace range from my zones), given this run and my recovery.
+
+            """;
+    }
+
     /// <summary>A chat message: today's data first, then what I wrote. Only the message goes into history.</summary>
     public static string Chat(TrainingData data, Config config, string message) =>
         "My current training data (for context):\n\n" + DataBlock(data.Runs, data.Recovery, data.Today, config) +

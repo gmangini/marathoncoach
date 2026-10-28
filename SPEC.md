@@ -19,6 +19,7 @@ Just me, through Discord (phone or desktop). The bot runs on my Windows PC.
 - [ ] AC-7: Given a message or command from any Discord user other than the owner ID in `.env`, when the bot receives it, then it replies with no data and makes no LLM call.
 - [ ] AC-8: Given the bot is running, when I tell it a new goal time, race date or race name by DM or with `/goal`, then it checks and saves them (surviving a restart), replies with the new pace zones, and later plans use them.
 - [ ] AC-9: Given the bot is deployed to my cloud server, when my PC is off, then DMs, slash commands and the morning DM (in my time zone) still work, and chat history, goal settings and the Garmin login survive a redeploy.
+- [ ] AC-10: Given the bot is running, when a new run syncs to Garmin, then within about 30 minutes it DMs a short review (plan or zone hit, heart-rate drift computed from laps, a suggestion for tomorrow), reviews each run once even across restarts, and `/review` reviews the latest run on demand.
 
 ## Non-goals (not in this version)
 - Pushing workouts to the watch or to Garmin's calendar

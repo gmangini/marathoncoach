@@ -37,6 +37,13 @@ values win over `.env`. Pace zones (easy, long, marathon, threshold, interval) a
 time, never guessed by Claude.
 
 Set `MORNING_TIME=06:30` in `.env` for a daily DM with that day's workout (the bot must be running).
+
+**After every run** the bot checks Garmin (every `RUN_CHECK_MINUTES`, default 30; `0` turns it off) and DMs
+a short review: did you hit the plan or zone, heart-rate drift computed from your laps, time in zones, and a
+suggestion for tomorrow. It checks against what `/today`, the morning DM or `/week` recommended for that day
+(saved in `data/plans.json`). Each run is reviewed once (`data/reviewed-runs.json`); on the first start it only
+records your existing runs. `/review` reviews your latest run on demand; on the console use `--prompt --review`
+(free) or `--console --review`.
 To DM the bot, click its name in your server's member list and send a message. Only the user in `DISCORD_OWNER_ID` gets an answer. If Garmin asks for a 2FA
 code, the bot asks for it in its console window at startup.
 

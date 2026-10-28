@@ -30,6 +30,17 @@ public sealed class SampleSource : IGarminSource
         }
     }
 
+    /// <summary>1 km laps at even pace with heart rate creeping up ~1 bpm per km: a little aerobic drift.</summary>
+    public Task<RunDetail> GetRunDetailAsync(RunSummary run, CancellationToken ct)
+    {
+        var laps = Enumerable.Range(1, (int)run.Km)
+            .Select(i => new Lap(i, 1.0, run.DurationMin * 60.0 / run.Km, 144 + i, "ACTIVE"))
+            .ToList();
+        var total = run.DurationMin * 60.0;
+        HrZone[] zones = [new(1, 100, total * 0.05), new(2, 125, total * 0.55), new(3, 145, total * 0.35), new(4, 160, total * 0.05), new(5, 175, 0)];
+        return Task.FromResult(new RunDetail(run, laps, zones));
+    }
+
     public Task<IReadOnlyList<RecoveryDay>> GetRecoveryAsync(int days, CancellationToken ct)
     {
         var today = DateOnly.FromDateTime(DateTime.Today);

@@ -49,10 +49,37 @@ public sealed class GarminSource : IGarminSource
                     (int)Math.Round(a.Duration / 60.0),
                     Pace.PerKm(km, a.Duration),
                     a.AverageHr > 0 ? (int)Math.Round(a.AverageHr) : null,
-                    a.AerobicTrainingEffect > 0 ? a.AerobicTrainingEffect : null);
+                    a.AerobicTrainingEffect > 0 ? a.AerobicTrainingEffect : null,
+                    a.ActivityId,
+                    a.StartTimeLocal);
             })
             .OrderBy(r => r.Date)
             .ToList();
+    }
+
+    public async Task<RunDetail> GetRunDetailAsync(RunSummary run, CancellationToken ct)
+    {
+        if (run.ActivityId is not { } id) return new RunDetail(run, [], []);
+
+        // Either call can fail (older watch, manual activity); the review then works with what it has.
+        var splits = await TryAsync(() => _client.GetActivitySplits(id, ct));
+        var zones = await TryAsync(() => _client.GetActivityHrInTimezones(id, ct));
+
+        var laps = (splits?.LapDtOs ?? [])
+            .Where(l => l.Duration > 0)
+            .Select(l => new Lap(
+                (int)l.LapIndex,
+                l.Distance / 1000.0,
+                l.Duration,
+                l.AverageHr > 0 ? (int)Math.Round(l.AverageHr) : null,
+                string.IsNullOrWhiteSpace(l.IntensityType) ? null : l.IntensityType))
+            .OrderBy(l => l.Index)
+            .ToList();
+        var hrZones = (zones ?? [])
+            .Select(z => new HrZone((int)z.ZoneNumber, (int)z.ZoneLowBoundary, z.SecsInZone))
+            .OrderBy(z => z.Zone)
+            .ToList();
+        return new RunDetail(run, laps, hrZones);
     }
 
     public async Task<IReadOnlyList<RecoveryDay>> GetRecoveryAsync(int days, CancellationToken ct)

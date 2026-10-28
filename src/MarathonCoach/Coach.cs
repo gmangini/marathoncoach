@@ -4,12 +4,18 @@ namespace MarathonCoach;
 
 /// <summary>Pulls training data and asks the LLM for coaching. No Discord here, so it is easy to test.</summary>
 public sealed class Coach(
-    TrainingDataCache data, ICoachLlm llm, Config baseConfig, ChatHistory history, SettingsStore? settings = null)
+    TrainingDataCache data, ICoachLlm llm, Config baseConfig, ChatHistory history, SettingsStore? settings = null,
+    PlanStore? plans = null, ReviewedRuns? reviewed = null)
 {
     /// <summary>How many past turns Claude sees (10 exchanges): enough to follow up, cheap to send.</summary>
     public const int ContextTurns = 20;
 
+    /// <summary>The run watcher looks this many days back, so a run synced late at night is still caught.</summary>
+    public const int WatchDays = 2;
+
     private readonly SettingsStore _settings = settings ?? new SettingsStore(null);
+    private readonly PlanStore _plans = plans ?? new PlanStore(null);
+    private readonly ReviewedRuns _reviewed = reviewed ?? new ReviewedRuns(null);
 
     /// <summary>The model may call this when the runner states a new goal or race in a DM.</summary>
     public static readonly CoachTool UpdateGoalTool = new(
@@ -38,8 +44,10 @@ public sealed class Coach(
         var d = await data.GetAsync(forceRefresh: false, ct);
         var answer = await llm.AskAsync(
             PromptBuilder.SystemPrompt, [new ChatTurn(true, PromptBuilder.Build(d.Runs, d.Recovery, d.Today, Config))], ct);
-        // Recorded so a follow-up DM ("make it shorter") knows what today's workout was.
+        // Recorded so a follow-up DM ("make it shorter") knows what today's workout was,
+        // and so the after-run review can check the run against it.
         history.AddExchange("/today: what should I run today?", answer);
+        _plans.Save(PlanStore.Day, d.Today, answer);
         return answer;
     }
 
@@ -48,7 +56,50 @@ public sealed class Coach(
         var d = await data.GetAsync(forceRefresh: false, ct);
         var answer = await llm.AskAsync(PromptBuilder.SystemPrompt, [new ChatTurn(true, PromptBuilder.Week(d, Config))], ct);
         history.AddExchange("/week: plan my next 7 days", answer);
+        _plans.Save(PlanStore.Week, d.Today, answer);
         return answer;
+    }
+
+    /// <summary>
+    /// The run watcher's tick: one light Garmin call, then a review for each run not reviewed before (oldest first).
+    /// A run is only marked reviewed once its review was written, so a failed review is retried on the next tick.
+    /// </summary>
+    public async Task<IReadOnlyList<string>> CheckNewRunsAsync(CancellationToken ct)
+    {
+        var fresh = _reviewed.TakeNew(await data.RecentRunsAsync(WatchDays, ct));
+        var reviews = new List<string>();
+        foreach (var run in fresh)
+        {
+            reviews.Add(await ReviewAsync(run, ct));
+            _reviewed.MarkReviewed(run);
+        }
+        return reviews;
+    }
+
+    /// <summary>/review: the latest run of the last 2 weeks, whether or not it was reviewed already.</summary>
+    public async Task<string> ReviewLatestAsync(CancellationToken ct)
+    {
+        var d = await data.GetAsync(forceRefresh: true, ct);
+        var latest = d.Runs.Where(r => r.Date > d.Today.AddDays(-14)).OrderBy(r => r.Date).LastOrDefault();
+        if (latest is null) return "No runs in the last 2 weeks to review.";
+        var review = await ReviewAsync(latest, ct);
+        _reviewed.MarkReviewed(latest);
+        return review;
+    }
+
+    private async Task<string> ReviewAsync(RunSummary run, CancellationToken ct)
+    {
+        // Fresh data so the review sees this run in the weekly load and today's recovery.
+        var d = await data.GetAsync(forceRefresh: true, ct);
+        var detail = await data.GetRunDetailAsync(run, ct);
+        var prompt = PromptBuilder.RunReview(detail, _plans.For(run.Date), d, Config);
+        var answer = await llm.AskAsync(PromptBuilder.SystemPrompt, [new ChatTurn(true, prompt)], ct);
+
+        var c = Config;
+        var title = $"🏃 {run.Name} · {run.When} · {UnitFormat.Distance(run.Km, c.Units)} · {UnitFormat.ConvertPace(run.Pace, c.Units)}";
+        // In history so you can reply "why?" and the coach knows which run you mean.
+        history.AddExchange($"Review my run: {run.Date:yyyy-MM-dd} {run.Name}, {UnitFormat.Distance(run.Km, c.Units)}", answer);
+        return $"**{title}**\n{answer}";
     }
 
     /// <summary>The morning DM: fresh Garmin data (last night's sleep and HRV), then today's workout.</summary>

@@ -24,13 +24,45 @@ public sealed class Bot(Config config, Coach coach)
 
         await _client.LoginAsync(TokenType.Bot, config.DiscordToken);
         await _client.StartAsync();
-        try
-        {
-            if (config.MorningTime is { } at) await MorningLoopAsync(at, ct);
-            else await Task.Delay(Timeout.Infinite, ct);
-        }
+        // Background jobs run side by side until Ctrl+C; each one catches its own errors and keeps going.
+        List<Task> jobs = [Task.Delay(Timeout.Infinite, ct)];
+        if (config.MorningTime is { } at) jobs.Add(MorningLoopAsync(at, ct));
+        if (config.RunCheckMinutes > 0) jobs.Add(RunWatchLoopAsync(TimeSpan.FromMinutes(config.RunCheckMinutes), ct));
+        try { await Task.WhenAll(jobs); }
         catch (OperationCanceledException) { }
         await _client.StopAsync();
+    }
+
+    /// <summary>
+    /// Every <paramref name="every"/>, checks Garmin for runs not reviewed yet and DMs a review of each. The first
+    /// check runs at startup (on a first-ever start it only records the existing runs, so no old reviews are sent).
+    /// </summary>
+    private async Task RunWatchLoopAsync(TimeSpan every, CancellationToken ct)
+    {
+        Console.WriteLine($"Checking for new runs every {every.TotalMinutes:0} min.");
+        while (true)
+        {
+            try
+            {
+                foreach (var review in await coach.CheckNewRunsAsync(ct))
+                {
+                    await SendToOwnerAsync(review);
+                    Console.WriteLine($"[bot] run review sent {DateTime.Now:HH:mm}");
+                }
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                Console.Error.WriteLine($"[bot] run check failed (will retry): {ex.GetType().Name}: {ex.Message}");
+            }
+            await Task.Delay(every, ct);
+        }
+    }
+
+    private async Task SendToOwnerAsync(string text)
+    {
+        var owner = await _client.GetUserAsync(config.OwnerId);
+        foreach (var chunk in DiscordText.Split(text))
+            await owner.SendMessageAsync(chunk);
     }
 
     /// <summary>
@@ -57,10 +89,7 @@ public sealed class Bot(Config config, Coach coach)
     {
         try
         {
-            var owner = await _client.GetUserAsync(config.OwnerId);
-            var answer = await coach.MorningAsync(CancellationToken.None);
-            foreach (var chunk in DiscordText.Split(answer))
-                await owner.SendMessageAsync(chunk);
+            await SendToOwnerAsync(await coach.MorningAsync(CancellationToken.None));
             Console.WriteLine($"[bot] morning DM sent {DateTime.Now:HH:mm}");
         }
         catch (Exception ex)
@@ -75,6 +104,7 @@ public sealed class Bot(Config config, Coach coach)
         [
             Command("today", "Today's recommended workout"),
             Command("week", "Your plan for the next 7 days"),
+            Command("review", "Review your latest run"),
             Command("sync", "Re-read your Garmin data now"),
             Command("reset", "Forget our chat history"),
             new SlashCommandBuilder()
@@ -105,7 +135,7 @@ public sealed class Bot(Config config, Coach coach)
         }
         else
             await _client.BulkOverwriteGlobalApplicationCommandsAsync(commands);
-        Console.WriteLine("Ready. DM the bot, or send /today, /week, /goal, /sync or /reset in Discord. Ctrl+C to stop.");
+        Console.WriteLine("Ready. DM the bot, or send /today, /week, /review, /goal, /sync or /reset in Discord. Ctrl+C to stop.");
 
         static ApplicationCommandProperties Command(string name, string description) => new SlashCommandBuilder()
             .WithName(name)
@@ -126,16 +156,8 @@ public sealed class Bot(Config config, Coach coach)
         await command.DeferAsync();
         try
         {
-            var answer = command.CommandName switch
-            {
-                "today" => await coach.TodayAsync(CancellationToken.None),
-                "week" => await coach.WeekAsync(CancellationToken.None),
-                "sync" => await coach.SyncAsync(CancellationToken.None),
-                "reset" => coach.Reset(),
-                "goal" => coach.SetGoal(Option("time"), Option("race_date"), Option("race_name"),
-                    DateOnly.FromDateTime(DateTime.Today)),
-                _ => "Unknown command.",
-            };
+            var answer = await RunCommandAsync(command.CommandName,
+                name => command.Data.Options.FirstOrDefault(o => o.Name == name)?.Value as string);
             foreach (var chunk in DiscordText.Split(answer))
                 await command.FollowupAsync(chunk);
         }
@@ -144,9 +166,19 @@ public sealed class Bot(Config config, Coach coach)
             Console.Error.WriteLine($"[bot] {command.CommandName} failed: {ex}");
             await command.FollowupAsync($"Something went wrong: {ex.GetType().Name}. Details are in the bot's console.");
         }
-
-        string? Option(string name) => command.Data.Options.FirstOrDefault(o => o.Name == name)?.Value as string;
     }
+
+    /// <summary>One place for what each command does, whether it came as a slash command or typed in a DM.</summary>
+    private async Task<string> RunCommandAsync(string name, Func<string, string?> option) => name switch
+    {
+        "today" => await coach.TodayAsync(CancellationToken.None),
+        "week" => await coach.WeekAsync(CancellationToken.None),
+        "review" => await coach.ReviewLatestAsync(CancellationToken.None),
+        "sync" => await coach.SyncAsync(CancellationToken.None),
+        "reset" => coach.Reset(),
+        "goal" => coach.SetGoal(option("time"), option("race_date"), option("race_name"), DateOnly.FromDateTime(DateTime.Today)),
+        _ => "Unknown command.",
+    };
 
     private async Task OnMessageAsync(SocketMessage message)
     {
@@ -163,7 +195,10 @@ public sealed class Bot(Config config, Coach coach)
         try
         {
             using var typing = message.Channel.EnterTypingState();
-            var answer = await coach.ChatAsync(message.Content, CancellationToken.None);
+            // Server slash commands don't show up in DMs, so a typed "/review" arrives as text: run it as the command.
+            var answer = TypedCommand.TryParse(message.Content, out var name)
+                ? await RunCommandAsync(name, _ => null)
+                : await coach.ChatAsync(message.Content, CancellationToken.None);
             foreach (var chunk in DiscordText.Split(answer))
                 await message.Channel.SendMessageAsync(chunk);
         }
@@ -172,6 +207,22 @@ public sealed class Bot(Config config, Coach coach)
             Console.Error.WriteLine($"[bot] DM failed: {ex}");
             await message.Channel.SendMessageAsync($"Something went wrong: {ex.GetType().Name}. Details are in the bot's console.");
         }
+    }
+}
+
+public static class TypedCommand
+{
+    public static readonly string[] Names = ["today", "week", "review", "sync", "reset", "goal"];
+
+    /// <summary>
+    /// True when a DM is exactly one of the commands ("/review", "/Today "). Anything more ("/goal 3:25",
+    /// "/review was it too fast?") goes to chat, where Claude can still act on it.
+    /// </summary>
+    public static bool TryParse(string text, out string name)
+    {
+        var t = text.Trim();
+        name = t.Length > 1 && t[0] == '/' ? t[1..].ToLowerInvariant() : "";
+        return Names.Contains(name);
     }
 }
 
