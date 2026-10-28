@@ -107,6 +107,7 @@ public sealed class Bot(Config config, Coach coach)
             Command("review", "Review your latest run"),
             Command("sync", "Re-read your Garmin data now"),
             Command("reset", "Forget our chat history"),
+            Command("help", "What each command does"),
             new SlashCommandBuilder()
                 .WithName("goal")
                 .WithDescription("Show or change your goal time and race (leave all empty to show)")
@@ -135,7 +136,7 @@ public sealed class Bot(Config config, Coach coach)
         }
         else
             await _client.BulkOverwriteGlobalApplicationCommandsAsync(commands);
-        Console.WriteLine("Ready. DM the bot, or send /today, /week, /review, /goal, /sync or /reset in Discord. Ctrl+C to stop.");
+        Console.WriteLine("Ready. DM the bot, or send /help in Discord to see the commands. Ctrl+C to stop.");
 
         static ApplicationCommandProperties Command(string name, string description) => new SlashCommandBuilder()
             .WithName(name)
@@ -176,6 +177,7 @@ public sealed class Bot(Config config, Coach coach)
         "review" => await coach.ReviewLatestAsync(CancellationToken.None),
         "sync" => await coach.SyncAsync(CancellationToken.None),
         "reset" => coach.Reset(),
+        "help" => coach.Help(),
         "goal" => coach.SetGoal(option("time"), option("race_date"), option("race_name"), DateOnly.FromDateTime(DateTime.Today)),
         _ => "Unknown command.",
     };
@@ -212,7 +214,7 @@ public sealed class Bot(Config config, Coach coach)
 
 public static class TypedCommand
 {
-    public static readonly string[] Names = ["today", "week", "review", "sync", "reset", "goal"];
+    public static readonly string[] Names = ["today", "week", "review", "sync", "reset", "goal", "help"];
 
     /// <summary>
     /// True when a DM is exactly one of the commands ("/review", "/Today "). Anything more ("/goal 3:25",

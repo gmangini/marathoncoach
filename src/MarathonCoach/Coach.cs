@@ -160,4 +160,33 @@ public sealed class Coach(
         history.Clear();
         return "Chat history cleared.";
     }
+
+    /// <summary>/help: what each command does and what the bot sends on its own. Written here, no Claude call.</summary>
+    public string Help()
+    {
+        var c = Config;
+        var morning = c.MorningTime is { } at
+            ? $"every day at {at.ToString("h:mm tt", System.Globalization.CultureInfo.InvariantCulture)}, today's workout"
+            : "off (set MORNING_TIME in .env, e.g. 06:30)";
+        var reviews = c.RunCheckMinutes > 0
+            ? $"a review of each new run, checked every {c.RunCheckMinutes} min"
+            : "off (set RUN_CHECK_MINUTES in .env)";
+        return $"""
+            **Coach commands** (in a DM, type the command on its own; in the server, pick it from the / menu)
+            `/today`: today's workout, with pace from your zones and when to swap to easy or rest
+            `/week`: a 7-day plan from today, with a weekly total
+            `/review`: a review of your latest run (plan or zone, heart-rate drift, time in zones, tomorrow)
+            `/goal`: your goal time, race, phase and pace zones
+            `/sync`: re-read your Garmin data now
+            `/reset`: clear our chat history
+            `/help`: this list
+
+            **Anything else** is a chat with me. I see your current data and our last 10 exchanges.
+            To change your goal or race, just say it, e.g. "aim for 3:25 at St George on 2027-10-02".
+
+            **I message you on my own:**
+            Morning: {morning}
+            After runs: {reviews}
+            """;
+    }
 }

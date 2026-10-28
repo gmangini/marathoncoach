@@ -24,6 +24,38 @@ public class TypedCommandTests
     public void Anything_else_goes_to_chat(string text) => Assert.False(TypedCommand.TryParse(text, out _));
 }
 
+public class HelpTests
+{
+    private static Coach NewCoach(Config config, ScriptedLlm llm) =>
+        new(new TrainingDataCache(new SampleSource(), TimeSpan.FromHours(3)), llm, config, new ChatHistory(null));
+
+    private static readonly Config Base = new(null, 1, null, Config.DefaultModel, "goal", "not set yet", "none");
+
+    [Fact]
+    public void Help_lists_every_command_and_costs_no_claude_call()
+    {
+        var llm = new ScriptedLlm();
+        var help = NewCoach(Base, llm).Help();
+
+        foreach (var name in TypedCommand.Names)
+            Assert.Contains($"`/{name}`", help);
+        Assert.Empty(llm.Calls);
+        Assert.True(TypedCommand.TryParse("/help", out var parsed) && parsed == "help");
+    }
+
+    [Fact]
+    public void Help_shows_what_the_bot_sends_on_its_own()
+    {
+        var on = NewCoach(Base with { MorningTime = new TimeOnly(6, 30), RunCheckMinutes = 30 }, new ScriptedLlm()).Help();
+        Assert.Contains("Morning: every day at 6:30 AM", on);
+        Assert.Contains("checked every 30 min", on);
+
+        var off = NewCoach(Base with { MorningTime = null, RunCheckMinutes = 0 }, new ScriptedLlm()).Help();
+        Assert.Contains("Morning: off (set MORNING_TIME", off);
+        Assert.Contains("After runs: off", off);
+    }
+}
+
 public class HeartRateDriftTests
 {
     private static Lap L(int i, int hr, double km = 1, double secs = 600, string? type = "ACTIVE") => new(i, km, secs, hr, type);

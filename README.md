@@ -28,7 +28,7 @@ Add `--sample` to any of them to use fake data instead of Garmin.
 In Discord, **DM the bot** in plain words to chat ("legs are trashed, swap tomorrow?"). Claude sees your
 current data and the last 10 exchanges; the conversation is saved in `data/chat-history.json`
 (git-ignored) and survives restarts. Commands: `/today` for the workout, `/sync` to re-read Garmin now
-(data otherwise refreshes after 3 hours or on a new day), `/reset` to forget the chat, `/week` for a
+(data otherwise refreshes after 3 hours or on a new day), `/reset` to forget the chat, `/help` to list the commands, `/week` for a
 7-day plan, `/goal` to show or change your goal time, race date and race name.
 
 You can also change the goal in a DM in plain words ("I signed up for St George on Oct 3 2027, aiming for
