@@ -1,14 +1,18 @@
 namespace MarathonCoach;
 
-/// <summary>One snapshot of everything the coach reads: 8 weeks of runs and 7 days of recovery.</summary>
+/// <summary>One snapshot of everything the coach reads: 8 weeks of runs and cross-training, 7 days of recovery.</summary>
 public sealed record TrainingData(
-    IReadOnlyList<RunSummary> Runs, IReadOnlyList<RecoveryDay> Recovery, DateOnly Today, DateTimeOffset FetchedAt)
+    IReadOnlyList<RunSummary> Runs, IReadOnlyList<RecoveryDay> Recovery, DateOnly Today, DateTimeOffset FetchedAt,
+    IReadOnlyList<CrossTraining>? Cross = null)
 {
     public const int Weeks = 8;
     public const int RecoveryDays = 7;
 
+    public IReadOnlyList<CrossTraining> CrossTraining => Cross ?? [];
+
     public string Summary =>
-        $"{Runs.Count} runs over {Weeks} weeks (last: {Runs.LastOrDefault()?.Date.ToString("yyyy-MM-dd") ?? "none"}), " +
+        $"{Runs.Count} runs and {CrossTraining.Count} other sessions over {Weeks} weeks " +
+        $"(last run: {Runs.LastOrDefault()?.Date.ToString("yyyy-MM-dd") ?? "none"}), " +
         $"{Recovery.Count} days of recovery, fetched {FetchedAt.LocalDateTime:HH:mm}";
 }
 
@@ -32,13 +36,25 @@ public sealed class TrainingDataCache(IGarminSource source, TimeSpan maxAge, Tim
             if (forceRefresh || _data is null || _data.Today != today || now - _data.FetchedAt > maxAge)
             {
                 // 8 weeks ending today = today minus 55 days, so the weekly buckets are 0..7.
-                var runs = await source.GetRunsAsync(today.AddDays(-(TrainingData.Weeks * 7 - 1)), today, ct);
+                var from = today.AddDays(-(TrainingData.Weeks * 7 - 1));
+                var runs = await source.GetRunsAsync(from, today, ct);
                 var recovery = await source.GetRecoveryAsync(TrainingData.RecoveryDays, ct);
-                _data = new TrainingData(runs, recovery, today, now);
+                _data = new TrainingData(runs, recovery, today, now, await CrossTrainingAsync(from, today, ct));
             }
             return _data;
         }
         finally { _lock.Release(); }
+    }
+
+    /// <summary>Cross-training is extra context: if Garmin fails on it, coach from the runs alone rather than not at all.</summary>
+    private async Task<IReadOnlyList<CrossTraining>> CrossTrainingAsync(DateOnly from, DateOnly to, CancellationToken ct)
+    {
+        try { return await source.GetCrossTrainingAsync(from, to, ct); }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            Console.Error.WriteLine($"[garmin] skipped cross-training: {ex.GetType().Name}: {ex.Message}");
+            return [];
+        }
     }
 
     /// <summary>Just the runs of the last <paramref name="days"/> days: one light Garmin call for the run watcher.</summary>

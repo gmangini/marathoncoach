@@ -37,6 +37,11 @@ values win over `.env`. Pace zones (easy, long, marathon, threshold, interval) a
 time, never guessed by Claude.
 
 Set `MORNING_TIME=06:30` in `.env` for a daily DM with that day's workout (the bot must be running).
+**Cross-training counts too.** Rides (TrainerRoad included, with power, normalized power and TSS), swims
+(pace per 100 yd/m), strength and anything else on Garmin show up in every prompt, with a weekly table of
+time and Garmin training load across sports, so a hard ride is counted as fatigue. Times use Garmin's
+moving time, so a hike's breaks don't count as training. Reviews are still for runs only.
+
 
 **After every run** the bot checks Garmin (every `RUN_CHECK_MINUTES`, default 30; `0` turns it off) and DMs
 a short review: did you hit the plan or zone, heart-rate drift computed from your laps, time in zones, and a

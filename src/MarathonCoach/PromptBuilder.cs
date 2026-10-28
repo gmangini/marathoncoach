@@ -15,8 +15,9 @@ public static class PromptBuilder
 
     /// <summary>The /today request: the data plus the answer format.</summary>
     public static string Build(
-        IReadOnlyList<RunSummary> runs, IReadOnlyList<RecoveryDay> recovery, DateOnly today, Config config) =>
-        "Recommend ONE run for me today.\n\n" + DataBlock(runs, recovery, today, config) + """
+        IReadOnlyList<RunSummary> runs, IReadOnlyList<RecoveryDay> recovery, DateOnly today, Config config,
+        IReadOnlyList<CrossTraining>? cross = null) =>
+        "Recommend ONE run for me today.\n\n" + DataBlock(runs, recovery, today, config, cross) + """
 
             Respond with:
             1. Today's workout: type, distance/duration, target pace and/or HR range, and the structure if it's a quality session.
@@ -31,7 +32,7 @@ public static class PromptBuilder
         var (example, unit) = config.Units == DistanceUnit.Miles
             ? ("Tue 21 Oct: Threshold 6 mi: 1 mi easy, 4 x 1 mi @ 7:26-7:36/mi, 1 mi easy", "miles")
             : ("Tue 21 Oct: Threshold 10 km: 2 km easy, 3 x 2 km @ 4:37-4:43/km, 2 km easy", "km");
-        return "Plan my next 7 days, starting today.\n\n" + DataBlock(data.Runs, data.Recovery, data.Today, config) + $"""
+        return "Plan my next 7 days, starting today.\n\n" + DataBlock(data.Runs, data.Recovery, data.Today, config, data.CrossTraining) + $"""
 
             Respond with one line per day (e.g. "{example}"):
             type, total {unit}, and the pace range from my zones for every part. Include rest days.
@@ -48,7 +49,7 @@ public static class PromptBuilder
             ? "No plan was recorded for that day: judge the run against the zone that fits what it looks like it was meant to be."
             : $"What you recommended for that day (from {(plan.Kind == PlanStore.Day ? "/today" : $"the /week plan of {plan.Date:ddd d MMM}")}):\n{plan.Text}";
         return "I just finished a run. Review it.\n\n" + RunAnalysis.Describe(run, config.Units) + "\n" + planned + "\n\n" +
-               DataBlock(data.Runs, data.Recovery, data.Today, config) + """
+               DataBlock(data.Runs, data.Recovery, data.Today, config, data.CrossTraining) + """
 
             Respond in at most 6 short lines, for a phone:
             1. Plan: did I do what was planned and stay in the right pace zone? Name the zone.
@@ -60,13 +61,15 @@ public static class PromptBuilder
 
     /// <summary>A chat message: today's data first, then what I wrote. Only the message goes into history.</summary>
     public static string Chat(TrainingData data, Config config, string message) =>
-        "My current training data (for context):\n\n" + DataBlock(data.Runs, data.Recovery, data.Today, config) +
+        "My current training data (for context):\n\n" + DataBlock(data.Runs, data.Recovery, data.Today, config, data.CrossTraining) +
         "\nMy message: " + message;
 
-    /// <summary>Goal, weekly mileage, recent runs and recovery, as plain lines.</summary>
+    /// <summary>Goal, weekly mileage, recent runs, cross-training and recovery, as plain lines.</summary>
     public static string DataBlock(
-        IReadOnlyList<RunSummary> runs, IReadOnlyList<RecoveryDay> recovery, DateOnly today, Config config)
+        IReadOnlyList<RunSummary> runs, IReadOnlyList<RecoveryDay> recovery, DateOnly today, Config config,
+        IReadOnlyList<CrossTraining>? cross = null)
     {
+        cross ??= [];
         var u = config.Units;
         var sb = new StringBuilder();
         sb.AppendLine($"Units: {UnitFormat.Name(u)} (answer in these)");
@@ -96,6 +99,18 @@ public static class PromptBuilder
         foreach (var r in runs.OrderBy(r => r.Date).TakeLast(20))
             sb.AppendLine($"- {r.Date:yyyy-MM-dd}: {UnitFormat.Distance(r.Km, u)} in {r.DurationMin} min, {UnitFormat.ConvertPace(r.Pace, u)}, " +
                           $"avg HR {r.AvgHr?.ToString() ?? "n/a"}, aerobic TE {r.AerobicTe?.ToString("0.0") ?? "n/a"} ({r.Name})");
+
+        sb.AppendLine();
+        sb.AppendLine("All training by week, every sport (load = Garmin training load, comparable across sports):");
+        foreach (var line in MultisportFormat.WeeklyLines(runs, cross, today, u))
+            sb.AppendLine(line);
+        sb.AppendLine();
+        sb.AppendLine("Recent cross-training (last 15 non-run sessions):");
+        if (cross.Count == 0) sb.AppendLine("- none");
+        foreach (var x in cross.OrderBy(x => x.Date).TakeLast(15))
+            sb.AppendLine(MultisportFormat.SessionLine(x, u));
+        sb.AppendLine("Count cross-training in my overall load and fatigue when you judge recovery and plan runs; " +
+                      "running stays the priority for my marathon goal.");
 
         sb.AppendLine();
         sb.AppendLine("Recovery, last 7 days (most recent first):");

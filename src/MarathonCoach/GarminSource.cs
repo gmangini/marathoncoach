@@ -51,9 +51,39 @@ public sealed class GarminSource : IGarminSource
                     a.AverageHr > 0 ? (int)Math.Round(a.AverageHr) : null,
                     a.AerobicTrainingEffect > 0 ? a.AerobicTrainingEffect : null,
                     a.ActivityId,
-                    a.StartTimeLocal);
+                    a.StartTimeLocal,
+                    a.ActivityTrainingLoad > 0 ? a.ActivityTrainingLoad : null);
             })
             .OrderBy(r => r.Date)
+            .ToList();
+    }
+
+    public async Task<IReadOnlyList<CrossTraining>> GetCrossTrainingAsync(DateOnly start, DateOnly end, CancellationToken ct)
+    {
+        // No activity type = every sport. Runs come from GetRunsAsync, and a multisport event's wrapper
+        // (Parent) is skipped because its legs are listed on their own.
+        var activities = await _client.GetActivitiesByDate(
+            start.ToDateTime(TimeOnly.MinValue), end.ToDateTime(TimeOnly.MaxValue), null!, ct);
+
+        return activities
+            .Where(a => !a.Parent && Sports.FromTypeKey(a.ActivityType?.TypeKey) != Sport.Run)
+            .Select(a => new CrossTraining(
+                DateOnly.FromDateTime(a.StartTimeLocal),
+                Sports.FromTypeKey(a.ActivityType?.TypeKey),
+                a.ActivityType?.TypeKey ?? "unknown",
+                a.ActivityName ?? "",
+                a.Distance / 1000.0,
+                // Moving time: a hike or swim with long stops would otherwise count its breaks as training.
+                a.MovingDuration > 0 ? a.MovingDuration : a.Duration,
+                a.AverageHr > 0 ? (int)Math.Round(a.AverageHr) : null,
+                a.AerobicTrainingEffect > 0 ? a.AerobicTrainingEffect : null,
+                a.AvgPower > 0 ? a.AvgPower : null,
+                a.NormPower > 0 ? a.NormPower : null,
+                a.TrainingStressScore > 0 ? a.TrainingStressScore : null,
+                a.ActivityTrainingLoad > 0 ? a.ActivityTrainingLoad : null,
+                a.ActivityId,
+                a.StartTimeLocal))
+            .OrderBy(x => x.Date)
             .ToList();
     }
 

@@ -43,7 +43,7 @@ public sealed class Coach(
     {
         var d = await data.GetAsync(forceRefresh: false, ct);
         var answer = await llm.AskAsync(
-            PromptBuilder.SystemPrompt, [new ChatTurn(true, PromptBuilder.Build(d.Runs, d.Recovery, d.Today, Config))], ct);
+            PromptBuilder.SystemPrompt, [new ChatTurn(true, PromptBuilder.Build(d.Runs, d.Recovery, d.Today, Config, d.CrossTraining))], ct);
         // Recorded so a follow-up DM ("make it shorter") knows what today's workout was,
         // and so the after-run review can check the run against it.
         history.AddExchange("/today: what should I run today?", answer);

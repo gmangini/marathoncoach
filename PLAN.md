@@ -13,6 +13,7 @@ Spec: [SPEC.md](SPEC.md) · Stack: .NET 8, Discord.Net, Anthropic SDK, xUnit
 | S5 | Strava merge (optional) | AC-6 | todo | |
 | S6 | Always on: container on a small cloud server | AC-9 | paused (packaged, not deployed) | 0219eca |
 | S7 | Feedback after each run (watcher + review DM, `/review`) | AC-10 | done | a56e6b6 |
+| S8 | Multisport data: cross-training in every prompt (first step toward Ironman via `/goal`) | AC-11 | done | 694f8ba |
 
 Status is one of `todo`, `building`, `review`, `done`.
 
@@ -74,6 +75,18 @@ Status is one of `todo`, `building`, `review`, `done`.
 - **Checked on real data:** `--prompt --review` on the Oct 23 run: laps in miles, -3.1% drift, zones
 - **Run it:** `/review`, then go for a run and wait for the DM
 - **Done when:** tests pass, `/review` works, and a real run gets a review DM by itself.
+
+## S8: Multisport data
+- **Files:** `Models.cs` (`Sport`, `CrossTraining`, load on runs, `GetCrossTrainingAsync`), `GarminSource.cs`
+  (all activity types in one call, multisport wrappers skipped, moving time), `Multisport.cs` (weekly table across
+  sports, one line per session), `TrainingData.cs` (cross-training in the snapshot; a Garmin failure on it keeps the
+  runs), `PromptBuilder.cs` + `Coach.cs` (in `/today`, `/week`, chat and reviews), `SampleSource.cs` (sample ride,
+  strength, swim)
+- **Tests:** `MultisportTests.cs`: sport mapping, durations, swim yd/m and pace, ride and strength lines, weekly
+  totals, prompt sections, every prompt carries it, Garmin failure keeps the runs
+- **Checked on real data:** TrainerRoad rides with power/NP/TSS, swims at ~1:57/100yd, hikes on moving time
+- **Next (Ironman via `/goal`):** S9 goal type + bike/swim zones (FTP, CSS), S10 triathlon plans in hours,
+  S11 reviews for rides and swims
 
 ## Gaps
 - none
