@@ -96,7 +96,13 @@ public sealed class ClaudeClient(string model) : ICoachLlm
             .OfType<BetaToolUseBlock>()
             .Select(u => new ToolCall(u.Name, u.Input.ToDictionary(
                 kv => kv.Key,
-                kv => kv.Value.ValueKind == JsonValueKind.String ? kv.Value.GetString() : null)))
+                // Numbers (like FTP) come through as their text; null and anything else as null.
+                kv => kv.Value.ValueKind switch
+                {
+                    JsonValueKind.String => kv.Value.GetString(),
+                    JsonValueKind.Number => kv.Value.GetRawText(),
+                    _ => null,
+                })))
             .ToList();
         return new(text, calls);
     }

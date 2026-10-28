@@ -184,7 +184,7 @@ public class GoalFromChatTests
     {
         var schema = System.Text.Json.JsonDocument.Parse(Coach.UpdateGoalTool.JsonSchema).RootElement;
         Assert.False(schema.GetProperty("additionalProperties").GetBoolean());
-        Assert.Equal(3, schema.GetProperty("required").GetArrayLength());
+        Assert.Equal(schema.GetProperty("properties").EnumerateObject().Count(), schema.GetProperty("required").GetArrayLength());
         foreach (var p in schema.GetProperty("properties").EnumerateObject())
             Assert.Contains("null", p.Value.GetProperty("type").EnumerateArray().Select(t => t.GetString()));
     }

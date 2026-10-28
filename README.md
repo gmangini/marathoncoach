@@ -37,6 +37,13 @@ values win over `.env`. Pace zones (easy, long, marathon, threshold, interval) a
 time, never guessed by Claude.
 
 Set `MORNING_TIME=06:30` in `.env` for a daily DM with that day's workout (the bot must be running).
+**Marathon, 70.3 or Ironman.** `/goal type:` (or a DM like "I'm doing Ironman Arizona on 2027-11-21, aiming for 12
+hours") switches the goal; the goal time is checked against that race. For triathlons the coach also gets bike power
+zones from your FTP ("my FTP is 250", or `/goal ftp:`), swim zones from your CSS ("my CSS is 1:55" per 100 yd in miles
+mode), run zones from your standalone marathon fitness (`marathon_time`, default 3:30), a rough split guide and race
+power, and phase advice with long rides and bricks. `/today` then picks one session of any sport. Saved in
+`data/coach-settings.json`; `.env` has `GOAL_TYPE`, `FTP`, `SWIM_CSS`, `MARATHON_TIME`.
+
 **Cross-training counts too.** Rides (TrainerRoad included, with power, normalized power and TSS), swims
 (pace per 100 yd/m), strength and anything else on Garmin show up in every prompt, with a weekly table of
 time and Garmin training load across sports, so a hard ride is counted as fatigue. Times use Garmin's

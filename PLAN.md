@@ -14,6 +14,7 @@ Spec: [SPEC.md](SPEC.md) · Stack: .NET 8, Discord.Net, Anthropic SDK, xUnit
 | S6 | Always on: container on a small cloud server | AC-9 | paused (packaged, not deployed) | 0219eca |
 | S7 | Feedback after each run (watcher + review DM, `/review`) | AC-10 | done | a56e6b6 |
 | S8 | Multisport data: cross-training in every prompt (first step toward Ironman via `/goal`) | AC-11 | done | 694f8ba |
+| S9 | Ironman via `/goal`: race type, FTP + CSS zones, split guide | AC-12 | done | ae1abd6 |
 
 Status is one of `todo`, `building`, `review`, `done`.
 
@@ -87,6 +88,17 @@ Status is one of `todo`, `building`, `review`, `done`.
 - **Checked on real data:** TrainerRoad rides with power/NP/TSS, swims at ~1:57/100yd, hikes on moving time
 - **Next (Ironman via `/goal`):** S9 goal type + bike/swim zones (FTP, CSS), S10 triathlon plans in hours,
   S11 reviews for rides and swims
+
+## S9: Ironman via `/goal`
+- **Files:** `Triathlon.cs` (race types and goal ranges, Coggan power zones, CSS swim zones, split guide, race
+  power), `CoachSettings.cs` (`GoalUpdate`: type, FTP, CSS, marathon time; a type change drops the old time),
+  `Config.cs` (`Race`, `Ftp`, `SwimCssSec`, `MarathonTime`, `RunZoneTime`), `TrainingPlan.cs` (triathlon phases),
+  `PromptBuilder.cs` (`ZoneLines`, session/week wording by race), `Coach.cs` (tool fields, `/goal` summary),
+  `ClaudeClient.cs` (numeric tool args), `Bot.cs` (`/goal` type menu, ftp, swim_css, marathon_time)
+- **Tests:** `TriathlonTests.cs`: parsing and ranges, power and swim zones, 12 h and 6 h split guides, phases,
+  settings (type switch, validation, run zones), prompts (missing FTP/CSS, all zones, marathon unchanged), chat sets
+  Ironman + FTP
+- **Checked live:** the API accepts the new strict tool schema (integer FTP)
 
 ## Gaps
 - none

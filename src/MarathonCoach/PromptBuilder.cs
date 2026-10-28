@@ -17,10 +17,13 @@ public static class PromptBuilder
     public static string Build(
         IReadOnlyList<RunSummary> runs, IReadOnlyList<RecoveryDay> recovery, DateOnly today, Config config,
         IReadOnlyList<CrossTraining>? cross = null) =>
-        "Recommend ONE run for me today.\n\n" + DataBlock(runs, recovery, today, config, cross) + """
+        (RaceTypes.IsTriathlon(config.Race)
+            ? "Recommend my ONE session for today (swim, bike, run, brick, strength or rest).\n\n"
+            : "Recommend ONE run for me today.\n\n") +
+        DataBlock(runs, recovery, today, config, cross) + """
 
             Respond with:
-            1. Today's workout: type, distance/duration, target pace and/or HR range, and the structure if it's a quality session.
+            1. Today's workout: type, distance/duration, target pace, power and/or HR range from my zones, and the structure if it's a quality session.
             2. Why: 2-3 sentences referencing my recent load and recovery.
             3. A "swap if" rule: when I should downgrade to easy or rest instead.
 
@@ -29,15 +32,21 @@ public static class PromptBuilder
     /// <summary>The /week request: a 7-day plan starting today, paces only from the zones.</summary>
     public static string Week(TrainingData data, Config config)
     {
-        var (example, unit) = config.Units == DistanceUnit.Miles
-            ? ("Tue 21 Oct: Threshold 6 mi: 1 mi easy, 4 x 1 mi @ 7:26-7:36/mi, 1 mi easy", "miles")
-            : ("Tue 21 Oct: Threshold 10 km: 2 km easy, 3 x 2 km @ 4:37-4:43/km, 2 km easy", "km");
+        var miles = config.Units == DistanceUnit.Miles;
+        var tri = RaceTypes.IsTriathlon(config.Race);
+        var (example, total) = tri
+            ? ("Tue 21 Oct: Bike 1h15: 15 min easy, 3 x 10 min threshold power (Z4) with 5 min easy between, 15 min easy",
+               "weekly time per sport (swim, bike, run) and in total")
+            : miles
+                ? ("Tue 21 Oct: Threshold 6 mi: 1 mi easy, 4 x 1 mi @ 7:26-7:36/mi, 1 mi easy", "weekly total in miles")
+                : ("Tue 21 Oct: Threshold 10 km: 2 km easy, 3 x 2 km @ 4:37-4:43/km, 2 km easy", "weekly total in km");
+        var unit = miles ? "miles" : "km";
         return "Plan my next 7 days, starting today.\n\n" + DataBlock(data.Runs, data.Recovery, data.Today, config, data.CrossTraining) + $"""
 
             Respond with one line per day (e.g. "{example}"):
-            type, total {unit}, and the pace range from my zones for every part. Include rest days.
-            Fit the week to my phase and to what I actually ran in the last 7 days, and don't put two hard days back to back.
-            Then a weekly total in {unit} and one sentence on the week's focus.
+            type, {(tri ? "duration" : $"total {unit}")}, and the pace{(tri ? ", power" : "")} range from my zones for every part. Include rest days.
+            Fit the week to my phase and to what I actually did in the last 7 days, and don't put two hard days back to back.
+            Then a {total} and one sentence on the week's focus.
 
             """;
     }
@@ -64,6 +73,45 @@ public static class PromptBuilder
         "My current training data (for context):\n\n" + DataBlock(data.Runs, data.Recovery, data.Today, config, data.CrossTraining) +
         "\nMy message: " + message;
 
+    /// <summary>
+    /// Every zone the coach should use, all computed in code: run pace zones always; bike power zones when FTP is set
+    /// (or "not set" for a triathlon goal); swim zones when CSS is set (likewise); and the split guide for a triathlon.
+    /// </summary>
+    public static IEnumerable<string> ZoneLines(Config c)
+    {
+        var u = c.Units;
+        var tri = RaceTypes.IsTriathlon(c.Race);
+        yield return tri
+            ? $"My run pace zones (computed from a {c.RunZoneTime:h\\:mm\\:ss} standalone marathon fitness; use these, don't invent others):"
+            : $"My pace zones (computed from a {c.TargetTime:h\\:mm\\:ss} goal; use these, don't invent others):";
+        foreach (var zone in PaceZones.For(c.RunZoneTime))
+            yield return $"- {zone.Describe(u)}";
+
+        if (c.Ftp is { } ftp)
+        {
+            yield return $"My bike power zones (FTP {ftp} W; use these for rides):";
+            foreach (var zone in PowerZones.For(ftp))
+                yield return $"- {zone}";
+        }
+        else if (tri) yield return "Bike power zones: FTP not set. Ask me for it (a TrainerRoad ramp test gives it) before prescribing power.";
+
+        if (c.SwimCssSec is { } css)
+        {
+            yield return $"My swim pace zones (CSS {SwimZones.Pace(css, u)}):";
+            foreach (var zone in SwimZones.For(css, u))
+                yield return $"- {zone}";
+        }
+        else if (tri) yield return "Swim pace zones: CSS not set. Ask me for it (from a 400/200 test) before prescribing swim paces.";
+
+        if (tri)
+        {
+            yield return $"Split guide for a {c.TargetTime:h\\:mm\\:ss} {RaceTypes.Name(c.Race)} (typical age-group splits, a rough guide):";
+            yield return "- " + string.Join(" | ", TriSplits.Describe(c.TargetTime, c.Race, u));
+            if (c.Ftp is { } f && PowerZones.RaceIntensity(c.Race) is var (lo, hi))
+                yield return $"- Race bike power: {lo:0%}-{hi:0%} of FTP = {f * lo:0}-{f * hi:0} W, so you can still run well off the bike";
+        }
+    }
+
     /// <summary>Goal, weekly mileage, recent runs, cross-training and recovery, as plain lines.</summary>
     public static string DataBlock(
         IReadOnlyList<RunSummary> runs, IReadOnlyList<RecoveryDay> recovery, DateOnly today, Config config,
@@ -77,11 +125,10 @@ public static class PromptBuilder
         sb.AppendLine($"Goal: {config.Goal}");
         if (config.RaceName is { } race) sb.AppendLine($"Race: {race}");
         sb.AppendLine($"Race date: {config.RaceDate}");
-        sb.AppendLine($"Phase: {TrainingPhase.Describe(today, config.RaceDay)}");
+        sb.AppendLine($"Phase: {TrainingPhase.Describe(today, config.RaceDay, config.Race)}");
         sb.AppendLine();
-        sb.AppendLine($"My pace zones (computed from a {config.TargetTime:h\\:mm\\:ss} goal; use these, don't invent others):");
-        foreach (var zone in PaceZones.For(config.TargetTime))
-            sb.AppendLine($"- {zone.Describe(u)}");
+        foreach (var line in ZoneLines(config))
+            sb.AppendLine(line);
         sb.AppendLine();
         sb.AppendLine($"Notes from me: {config.Notes}");
         sb.AppendLine();
@@ -109,8 +156,11 @@ public static class PromptBuilder
         if (cross.Count == 0) sb.AppendLine("- none");
         foreach (var x in cross.OrderBy(x => x.Date).TakeLast(15))
             sb.AppendLine(MultisportFormat.SessionLine(x, u));
-        sb.AppendLine("Count cross-training in my overall load and fatigue when you judge recovery and plan runs; " +
-                      "running stays the priority for my marathon goal.");
+        sb.AppendLine(RaceTypes.IsTriathlon(config.Race)
+            ? $"Swim, bike and run are all main sports for my {RaceTypes.Name(config.Race)} goal: " +
+              "balance load across them and count strength and other sessions in my fatigue."
+            : "Count cross-training in my overall load and fatigue when you judge recovery and plan runs; " +
+              "running stays the priority for my marathon goal.");
 
         sb.AppendLine();
         sb.AppendLine("Recovery, last 7 days (most recent first):");

@@ -21,11 +21,12 @@ Just me, through Discord (phone or desktop). The bot runs on my Windows PC.
 - [ ] AC-9: Given the bot is deployed to my cloud server, when my PC is off, then DMs, slash commands and the morning DM (in my time zone) still work, and chat history, goal settings and the Garmin login survive a redeploy.
 - [ ] AC-10: Given the bot is running, when a new run syncs to Garmin, then within about 30 minutes it DMs a short review (plan or zone hit, heart-rate drift computed from laps, a suggestion for tomorrow), reviews each run once even across restarts, and `/review` reviews the latest run on demand.
 - [ ] AC-11: Given rides, swims, strength or other sessions on Garmin (TrainerRoad rides included), when the coach plans or answers, then it sees each session (power and TSS for rides, pace per 100 for swims) and weekly time and training load per sport, and counts cross-training in my load and recovery.
+- [ ] AC-12: Given I set a goal type (marathon, 70.3 or ironman), FTP, swim CSS or marathon time by DM, `/goal` or `.env`, when the coach plans or answers, then it uses a goal time checked against that race, bike power zones from FTP, swim pace zones from CSS, run zones from marathon fitness, a split guide for triathlons, and phase advice for that race; values survive a restart.
 
 ## Non-goals (not in this version)
 - Pushing workouts to the watch or to Garmin's calendar
 - A web UI, multiple users
-- Cycling or swimming plans
+- Full triathlon week plans in hours and ride or swim reviews (next slices)
 
 ## Constraints
 - Data: personal health data stays on my own machines (this PC and my own cloud server) and goes only to the Anthropic API in prompts. Secrets live in the server's `.env`, never in the image or git.

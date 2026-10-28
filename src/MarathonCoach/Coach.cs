@@ -20,18 +20,23 @@ public sealed class Coach(
     /// <summary>The model may call this when the runner states a new goal or race in a DM.</summary>
     public static readonly CoachTool UpdateGoalTool = new(
         "update_goal",
-        "Save the runner's marathon goal or race when they tell you a new one (e.g. 'I signed up for St George on " +
-        "Oct 3 2027' or 'let's aim for 3:25'). Pass only what they said; null for the rest. Don't call it for " +
-        "hypotheticals ('what if I ran 3:20?'). Convert dates to yyyy-MM-dd using today's date from the data.",
+        "Save the athlete's goal, race or fitness numbers when they tell you new ones (e.g. 'I signed up for St George " +
+        "on Oct 3 2027', 'let's aim for 3:25', 'I'm doing Ironman Arizona, aiming for 12 hours', 'my FTP is 250', " +
+        "'my CSS is 1:55'). Pass only what they said; null for the rest. Don't call it for hypotheticals ('what if I " +
+        "ran 3:20?'). Convert dates to yyyy-MM-dd using today's date from the data.",
         """
         {
           "type": "object",
           "properties": {
-            "goal_time": { "type": ["string", "null"], "description": "Finish time as h:mm:ss, e.g. 3:25:00" },
+            "goal_type": { "type": ["string", "null"], "description": "marathon, 70.3 or ironman" },
+            "goal_time": { "type": ["string", "null"], "description": "Finish time for that race as h:mm:ss, e.g. 3:25:00 or 12:00:00" },
             "race_date": { "type": ["string", "null"], "description": "Race day as yyyy-MM-dd" },
-            "race_name": { "type": ["string", "null"], "description": "Race name, e.g. St George Marathon" }
+            "race_name": { "type": ["string", "null"], "description": "Race name, e.g. St George Marathon or Ironman Arizona" },
+            "ftp": { "type": ["integer", "null"], "description": "Cycling FTP in watts" },
+            "swim_css": { "type": ["string", "null"], "description": "Swim CSS pace per 100 (yards if the data is in miles), e.g. 1:55" },
+            "marathon_time": { "type": ["string", "null"], "description": "Standalone marathon fitness for run zones when the goal is a triathlon, e.g. 3:30" }
           },
-          "required": ["goal_time", "race_date", "race_name"],
+          "required": ["goal_type", "goal_time", "race_date", "race_name", "ftp", "swim_css", "marathon_time"],
           "additionalProperties": false
         }
         """);
@@ -123,8 +128,10 @@ public sealed class Coach(
         foreach (var call in reply.ToolCalls.Where(c => c.Name == UpdateGoalTool.Name))
         {
             if (answer.Length > 0) answer.AppendLine().AppendLine();
-            answer.Append(SetGoal(call.Args.GetValueOrDefault("goal_time"),
-                call.Args.GetValueOrDefault("race_date"), call.Args.GetValueOrDefault("race_name"), d.Today));
+            string? Arg(string key) => call.Args.GetValueOrDefault(key);
+            answer.Append(SetGoal(new GoalUpdate(
+                Arg("goal_time"), Arg("race_date"), Arg("race_name"), Arg("goal_type"),
+                int.TryParse(Arg("ftp"), out var ftp) ? ftp : null, Arg("swim_css"), Arg("marathon_time")), d.Today));
         }
 
         var text = answer.Length > 0 ? answer.ToString() : "(no answer)";
@@ -133,11 +140,18 @@ public sealed class Coach(
     }
 
     /// <summary>Checks and saves goal/race (null = unchanged), then shows the result. All null = show current.</summary>
-    public string SetGoal(string? goalTime, string? raceDate, string? raceName, DateOnly today)
+    public string SetGoal(string? goalTime, string? raceDate, string? raceName, DateOnly today) =>
+        SetGoal(new GoalUpdate(goalTime, raceDate, raceName), today);
+
+    /// <summary>Checks and saves any goal, race or fitness change, then shows the result. Nothing asked = show current.</summary>
+    public string SetGoal(GoalUpdate update, DateOnly today)
     {
-        if (goalTime is null && raceDate is null && raceName is null) return GoalSummary(today);
-        var (ok, message) = _settings.Update(goalTime, raceDate, raceName, today);
-        return ok ? "✅ Goal updated.\n" + GoalSummary(today) : "⚠️ Nothing saved: " + message;
+        if (update.IsEmpty) return GoalSummary(today);
+        var c = Config;
+        var (ok, message) = _settings.Update(update, c.Race, c.Units, today);
+        if (!ok) return "⚠️ Nothing saved: " + message;
+        var note = message == "Saved." ? "" : "\n" + message["Saved. ".Length..];
+        return "✅ Goal updated." + note + "\n" + GoalSummary(today);
     }
 
     public string GoalSummary(DateOnly today)
@@ -146,9 +160,9 @@ public sealed class Coach(
         var sb = new StringBuilder();
         sb.AppendLine($"**Goal:** {c.Goal}");
         sb.AppendLine($"**Race:** {c.RaceName ?? "not set"}, {(c.RaceDay is { } r ? r.ToString("ddd d MMM yyyy") : "date not set")}");
-        sb.AppendLine($"**Phase:** {TrainingPhase.Describe(today, c.RaceDay)}");
-        sb.AppendLine("**Pace zones:**");
-        foreach (var zone in PaceZones.For(c.TargetTime)) sb.AppendLine($"- {zone.Describe(c.Units)}");
+        sb.AppendLine($"**Phase:** {TrainingPhase.Describe(today, c.RaceDay, c.Race)}");
+        sb.AppendLine("**Zones:**");
+        foreach (var line in PromptBuilder.ZoneLines(c)) sb.AppendLine(line);
         return sb.ToString().TrimEnd();
     }
 
@@ -176,13 +190,14 @@ public sealed class Coach(
             `/today`: today's workout, with pace from your zones and when to swap to easy or rest
             `/week`: a 7-day plan from today, with a weekly total
             `/review`: a review of your latest run (plan or zone, heart-rate drift, time in zones, tomorrow)
-            `/goal`: your goal time, race, phase and pace zones
+            `/goal`: your goal (marathon, 70.3 or Ironman), race, phase and run, bike and swim zones
             `/sync`: re-read your Garmin data now
             `/reset`: clear our chat history
             `/help`: this list
 
             **Anything else** is a chat with me. I see your current data and our last 10 exchanges.
-            To change your goal or race, just say it, e.g. "aim for 3:25 at St George on 2027-10-02".
+            To change your goal, race or fitness numbers, just say it, e.g. "aim for 3:25 at St George on 2027-10-02",
+            "I'm doing Ironman Arizona on 2027-11-21, aiming for 12 hours", "my FTP is 250" or "my CSS is 1:55".
 
             **I message you on my own:**
             Morning: {morning}

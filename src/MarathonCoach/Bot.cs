@@ -110,10 +110,16 @@ public sealed class Bot(Config config, Coach coach)
             Command("help", "What each command does"),
             new SlashCommandBuilder()
                 .WithName("goal")
-                .WithDescription("Show or change your goal time and race (leave all empty to show)")
-                .AddOption("time", ApplicationCommandOptionType.String, "Goal finish time, e.g. 3:25:00", isRequired: false)
+                .WithDescription("Show or change your goal, race, FTP and swim CSS (leave all empty to show)")
+                .AddOption(new SlashCommandOptionBuilder()
+                    .WithName("type").WithDescription("What you're training for").WithType(ApplicationCommandOptionType.String)
+                    .AddChoice("Marathon", "marathon").AddChoice("Ironman 70.3", "70.3").AddChoice("Ironman", "ironman"))
+                .AddOption("time", ApplicationCommandOptionType.String, "Goal finish time, e.g. 3:25:00 or 12:00:00", isRequired: false)
                 .AddOption("race_date", ApplicationCommandOptionType.String, "Race day as yyyy-MM-dd", isRequired: false)
                 .AddOption("race_name", ApplicationCommandOptionType.String, "Race name", isRequired: false)
+                .AddOption("ftp", ApplicationCommandOptionType.Integer, "Cycling FTP in watts, e.g. 250", isRequired: false)
+                .AddOption("swim_css", ApplicationCommandOptionType.String, "Swim CSS pace per 100, e.g. 1:55", isRequired: false)
+                .AddOption("marathon_time", ApplicationCommandOptionType.String, "Marathon fitness for run zones (triathlon goals), e.g. 3:30", isRequired: false)
                 .WithContextTypes(InteractionContextType.Guild, InteractionContextType.BotDm, InteractionContextType.PrivateChannel)
                 .Build(),
         ];
@@ -158,7 +164,7 @@ public sealed class Bot(Config config, Coach coach)
         try
         {
             var answer = await RunCommandAsync(command.CommandName,
-                name => command.Data.Options.FirstOrDefault(o => o.Name == name)?.Value as string);
+                name => command.Data.Options.FirstOrDefault(o => o.Name == name)?.Value?.ToString());
             foreach (var chunk in DiscordText.Split(answer))
                 await command.FollowupAsync(chunk);
         }
@@ -178,7 +184,9 @@ public sealed class Bot(Config config, Coach coach)
         "sync" => await coach.SyncAsync(CancellationToken.None),
         "reset" => coach.Reset(),
         "help" => coach.Help(),
-        "goal" => coach.SetGoal(option("time"), option("race_date"), option("race_name"), DateOnly.FromDateTime(DateTime.Today)),
+        "goal" => coach.SetGoal(new GoalUpdate(option("time"), option("race_date"), option("race_name"), option("type"),
+            int.TryParse(option("ftp"), out var ftp) ? ftp : null, option("swim_css"), option("marathon_time")),
+            DateOnly.FromDateTime(DateTime.Today)),
         _ => "Unknown command.",
     };
 
