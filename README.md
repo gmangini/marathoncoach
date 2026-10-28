@@ -41,7 +41,9 @@ Set `MORNING_TIME=06:30` in `.env` for a daily DM with that day's workout (the b
 hours") switches the goal; the goal time is checked against that race. For triathlons the coach also gets bike power
 zones from your FTP ("my FTP is 250", or `/goal ftp:`), swim zones from your CSS ("my CSS is 1:55" per 100 yd in miles
 mode), run zones from your standalone marathon fitness (`marathon_time`, default 3:30), a rough split guide and race
-power, and phase advice with long rides and bricks. `/today` then picks one session of any sport. Saved in
+power, and phase advice with long rides and bricks. `/today` then picks one session of any sport, and `/week` is
+planned in hours: a volume guide (your last 4 weeks per sport, the usual range for the race and phase, this week's
+total grown about 10% at most, and the swim/bike/run split) with a brick in build and peak. Saved in
 `data/coach-settings.json`; `.env` has `GOAL_TYPE`, `FTP`, `SWIM_CSS`, `MARATHON_TIME`.
 
 **Cross-training counts too.** Rides (TrainerRoad included, with power, normalized power and TSS), swims

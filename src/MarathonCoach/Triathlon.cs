@@ -139,3 +139,71 @@ public static class TriSplits
     private static string Speed(double km, double secs, DistanceUnit u) =>
         u == DistanceUnit.Miles ? $"{km / UnitFormat.KmPerMile / (secs / 3600):0.0} mph" : $"{km / (secs / 3600):0.0} km/h";
 }
+
+/// <summary>
+/// How many hours a triathlon week should hold, computed so the coach plans durations instead of guessing them:
+/// a typical age-group range for the race and block, capped at about 10% more than the last 4 weeks averaged.
+/// </summary>
+public static class TriVolume
+{
+    /// <summary>Weekly hours for the race and block (common age-group ranges, not a law).</summary>
+    public static (double Lo, double Hi) Range(RaceType race, Block block) => (race, block) switch
+    {
+        (RaceType.Ironman, Block.Base) => (8, 11),
+        (RaceType.Ironman, Block.Build) => (11, 14),
+        (RaceType.Ironman, Block.Peak) => (13, 16),
+        (RaceType.Ironman, Block.Taper or Block.RaceDay) => (6, 9),
+        (RaceType.Ironman, Block.After) => (3, 6),
+        (RaceType.Ironman, _) => (7, 10),
+        (_, Block.Base) => (6, 8),
+        (_, Block.Build) => (8, 10),
+        (_, Block.Peak) => (9, 12),
+        (_, Block.Taper or Block.RaceDay) => (4, 6),
+        (_, Block.After) => (2, 5),
+        _ => (5, 8),
+    };
+
+    /// <summary>This week's hours: grow at most ~10% from what you did, never past the top of the range.</summary>
+    public static (double Lo, double Hi, string Why) Target(RaceType race, Block block, double recentHours)
+    {
+        var (lo, hi) = Range(race, block);
+        if (block is Block.Taper or Block.RaceDay or Block.After)
+            return (lo, hi, block == Block.After ? "recovery after the race" : "taper: less volume, keep some intensity");
+        if (recentHours <= 0)
+            return (lo, lo, "no training in the last 4 weeks of data: start at the low end and see how it feels");
+        if (recentHours >= hi)
+            return (lo, hi, "you're already at the top of the range: hold, don't add more");
+        var cap = Math.Min(hi, recentHours * 1.1);
+        return (recentHours, cap, recentHours < lo
+            ? "below the range for this block: build toward it, about 10% a week"
+            : "within the range: grow about 10% a week at most");
+    }
+
+    /// <summary>The volume guide for the prompts; empty for a marathon goal.</summary>
+    public static IEnumerable<string> Lines(
+        Config c, DateOnly today, IReadOnlyList<RunSummary> runs, IReadOnlyList<CrossTraining> cross)
+    {
+        if (!RaceTypes.IsTriathlon(c.Race)) yield break;
+        // Last 4 full 7-day buckets, the same weeks as the weekly table.
+        bool Recent(DateOnly d) => today.DayNumber - d.DayNumber is >= 0 and < 28;
+        double Hours(Sport s) => cross.Where(x => x.Sport == s && Recent(x.Date)).Sum(x => x.DurationSec) / 3600 / 4;
+        var run = runs.Where(r => Recent(r.Date)).Sum(r => r.DurationMin) / 60.0 / 4;
+        var (bike, swim) = (Hours(Sport.Bike), Hours(Sport.Swim));
+        var total = run + bike + swim + Hours(Sport.Strength) + Hours(Sport.Other);
+
+        var block = TrainingPhase.BlockOf(today, c.RaceDay);
+        var (lo, hi) = Range(c.Race, block);
+        var (a, b, why) = Target(c.Race, block, total);
+        var mid = (a + b) / 2;
+        string H(double hours) => MultisportFormat.Duration(hours * 3600);
+        string Share(double from, double to) => $"{H(mid * from)}-{H(mid * to)}";
+
+        yield return $"Weekly volume guide for my {RaceTypes.Name(c.Race)} (hours, computed; plan the week to fit it):";
+        yield return $"- Last 4 weeks averaged {H(total)} a week: swim {H(swim)}, bike {H(bike)}, run {H(run)}";
+        yield return $"- Typical range for this block ({(block == Block.NoDate ? "no race date" : block.ToString().ToLowerInvariant())}): {lo:0}-{hi:0} h a week";
+        yield return $"- This week: {(a == b ? H(a) : $"{H(a)}-{H(b)}")} in total ({why}); every 3rd or 4th week, a recovery week at about 70%";
+        yield return $"- Split it about swim 15-20% ({Share(0.15, 0.20)}), bike 45-55% ({Share(0.45, 0.55)}), " +
+                     $"run 25-35% ({Share(0.25, 0.35)}), plus 1-2 short strength sessions; " +
+                     "move toward this split over a few weeks rather than cutting a sport sharply";
+    }
+}

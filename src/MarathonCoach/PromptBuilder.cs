@@ -35,8 +35,8 @@ public static class PromptBuilder
         var miles = config.Units == DistanceUnit.Miles;
         var tri = RaceTypes.IsTriathlon(config.Race);
         var (example, total) = tri
-            ? ("Tue 21 Oct: Bike 1h15: 15 min easy, 3 x 10 min threshold power (Z4) with 5 min easy between, 15 min easy",
-               "weekly time per sport (swim, bike, run) and in total")
+            ? ("Tue 21 Oct: Bike 1:15: 15 min easy, 3 x 10 min threshold power (Z4) with 5 min easy between, 15 min easy",
+               "weekly time per sport (swim, bike, run) and in total, checked against this week's range")
             : miles
                 ? ("Tue 21 Oct: Threshold 6 mi: 1 mi easy, 4 x 1 mi @ 7:26-7:36/mi, 1 mi easy", "weekly total in miles")
                 : ("Tue 21 Oct: Threshold 10 km: 2 km easy, 3 x 2 km @ 4:37-4:43/km, 2 km easy", "weekly total in km");
@@ -44,12 +44,18 @@ public static class PromptBuilder
         return "Plan my next 7 days, starting today.\n\n" + DataBlock(data.Runs, data.Recovery, data.Today, config, data.CrossTraining) + $"""
 
             Respond with one line per day (e.g. "{example}"):
-            type, {(tri ? "duration" : $"total {unit}")}, and the pace{(tri ? ", power" : "")} range from my zones for every part. Include rest days.
-            Fit the week to my phase and to what I actually did in the last 7 days, and don't put two hard days back to back.
+            type, {(tri ? "duration (h:mm)" : $"total {unit}")}, and the pace{(tri ? ", power" : "")} range from my zones for every part. Include rest days.
+            Fit the week to my phase and to what I actually did in the last 7 days, and don't put two hard days back to back.{(tri ? TriWeekRules : "")}
             Then a {total} and one sentence on the week's focus.
 
             """;
     }
+
+    private const string TriWeekRules = """
+
+        Plan in hours: the week's total must land in "This week" from my volume guide, split by sport as it says.
+        Put the long ride and the long run on different days, and in build or peak add one brick (a 15-30 min run straight off a ride).
+        """;
 
     /// <summary>The after-run review: the run (laps, drift, zones), what was planned, then the usual data.</summary>
     public static string RunReview(RunDetail run, PlanEntry? plan, TrainingData data, Config config)
@@ -128,6 +134,8 @@ public static class PromptBuilder
         sb.AppendLine($"Phase: {TrainingPhase.Describe(today, config.RaceDay, config.Race)}");
         sb.AppendLine();
         foreach (var line in ZoneLines(config))
+            sb.AppendLine(line);
+        foreach (var line in TriVolume.Lines(config, today, runs, cross))
             sb.AppendLine(line);
         sb.AppendLine();
         sb.AppendLine($"Notes from me: {config.Notes}");

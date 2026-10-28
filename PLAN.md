@@ -15,6 +15,7 @@ Spec: [SPEC.md](SPEC.md) · Stack: .NET 8, Discord.Net, Anthropic SDK, xUnit
 | S7 | Feedback after each run (watcher + review DM, `/review`) | AC-10 | done | a56e6b6 |
 | S8 | Multisport data: cross-training in every prompt (first step toward Ironman via `/goal`) | AC-11 | done | 694f8ba |
 | S9 | Ironman via `/goal`: race type, FTP + CSS zones, split guide | AC-12 | done | ae1abd6 |
+| S10 | Triathlon week plans in hours: volume guide per sport, bricks | AC-13 | done | 7727f9e |
 
 Status is one of `todo`, `building`, `review`, `done`.
 
@@ -99,6 +100,16 @@ Status is one of `todo`, `building`, `review`, `done`.
   settings (type switch, validation, run zones), prompts (missing FTP/CSS, all zones, marathon unchanged), chat sets
   Ironman + FTP
 - **Checked live:** the API accepts the new strict tool schema (integer FTP)
+
+## S10: Triathlon week plans in hours
+- **Files:** `TrainingPlan.cs` (`Block` and `TrainingPhase.BlockOf`, shared by the phase text), `Triathlon.cs`
+  (`TriVolume`: weekly hour ranges per race and block, this week's target capped at ~10% over the last 4 weeks,
+  the volume guide lines with the sport split), `PromptBuilder.cs` (guide in every triathlon prompt; `/week` plans in
+  h:mm, lands in the target, long ride and long run apart, a brick in build or peak)
+- **Tests:** `TriathlonTests.cs` `TriVolumeTests`: blocks by weeks out, growth below/within/at the top of the range,
+  taper, no recent training, 4-week average per sport (older weeks ignored), none for a marathon; week prompt rules
+- **Run it:** `/goal type:Ironman`, then `/week`
+- **Done when:** tests pass and an Ironman `/week` comes back in hours that fit the guide.
 
 ## Gaps
 - none

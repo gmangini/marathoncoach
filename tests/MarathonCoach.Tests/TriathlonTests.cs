@@ -217,7 +217,10 @@ public class TriPromptTests
 
         var prompt = llm.Calls.Single().Single().Text;
         Assert.Contains("weekly time per sport (swim, bike, run)", prompt);
-        Assert.Contains("type, duration, and the pace, power range", prompt);
+        Assert.Contains("type, duration (h:mm), and the pace, power range", prompt);
+        Assert.Contains("Plan in hours: the week's total must land in \"This week\"", prompt);
+        Assert.Contains("one brick", prompt);
+        Assert.Contains("Weekly volume guide for my Ironman", prompt);
     }
 
     [Fact]
@@ -240,4 +243,88 @@ public class TriPromptTests
         Assert.Contains("**Goal:** Ironman in 12:00:00", answer);
         Assert.Contains("Z4 Threshold: 228-262 W", answer);
     }
+}
+
+public class TriVolumeTests
+{
+    private static readonly DateOnly Today = new(2026, 10, 27);
+
+    private static readonly Config Ironman = new(null, 1, null, Config.DefaultModel, "Ironman in 12:00:00", "2027-03-01", "none",
+        GoalTime: new TimeSpan(12, 0, 0), Units: DistanceUnit.Miles, Race: RaceType.Ironman);
+
+    [Theory]
+    [InlineData(200, Block.Base)]
+    [InlineData(60, Block.Build)]
+    [InlineData(30, Block.Peak)]
+    [InlineData(10, Block.Taper)]
+    [InlineData(0, Block.RaceDay)]
+    [InlineData(-3, Block.After)]
+    public void Blocks_follow_the_weeks_to_race_day(int daysOut, Block expected) =>
+        Assert.Equal(expected, TrainingPhase.BlockOf(Today, Today.AddDays(daysOut)));
+
+    [Fact]
+    public void No_race_date_is_its_own_block() => Assert.Equal(Block.NoDate, TrainingPhase.BlockOf(Today, null));
+
+    [Fact]
+    public void Below_the_range_grows_about_10_percent()
+    {
+        var (lo, hi, why) = TriVolume.Target(RaceType.Ironman, Block.Build, 6);
+        Assert.Equal(6, lo);
+        Assert.Equal(6.6, hi, 3);
+        Assert.Contains("below the range", why);
+    }
+
+    [Fact]
+    public void Growth_never_passes_the_top_of_the_range()
+    {
+        var (_, hi, _) = TriVolume.Target(RaceType.HalfIronman, Block.Build, 9.5);
+        Assert.Equal(10, hi);
+    }
+
+    [Fact]
+    public void At_the_top_it_holds_and_taper_cuts_back()
+    {
+        Assert.Equal((11, 14), TriVolume.Target(RaceType.Ironman, Block.Build, 15) is var t ? (t.Lo, t.Hi) : default);
+        Assert.Equal((6, 9), TriVolume.Target(RaceType.Ironman, Block.Taper, 15) is var u ? (u.Lo, u.Hi) : default);
+    }
+
+    [Fact]
+    public void No_recent_training_starts_at_the_low_end()
+    {
+        var (lo, hi, why) = TriVolume.Target(RaceType.Ironman, Block.Base, 0);
+        Assert.Equal((8.0, 8.0), (lo, hi));
+        Assert.Contains("start at the low end", why);
+    }
+
+    [Fact]
+    public void Guide_averages_the_last_4_weeks_by_sport()
+    {
+        // Each week: 3 h run, 4 h bike, 1 h swim = 8 h; an older week must not count.
+        var runs = Enumerable.Range(0, 4).Select(w => new RunSummary(Today.AddDays(-7 * w), "Run", 30, 180, "6:00/km", null, null))
+            .Append(new RunSummary(Today.AddDays(-35), "Old", 50, 600, "6:00/km", null, null)).ToList();
+        var cross = Enumerable.Range(0, 4).SelectMany(w => new[]
+        {
+            new CrossTraining(Today.AddDays(-7 * w - 1), Sport.Bike, "virtual_ride", "Ride", 100, 4 * 3600),
+            new CrossTraining(Today.AddDays(-7 * w - 2), Sport.Swim, "lap_swimming", "Swim", 3, 3600),
+        }).ToList();
+
+        var lines = TriVolume.Lines(Ironman, Today, runs, cross).ToList();
+
+        Assert.Equal("Weekly volume guide for my Ironman (hours, computed; plan the week to fit it):", lines[0]);
+        Assert.Equal("- Last 4 weeks averaged 8h00 a week: swim 1h00, bike 4h00, run 3h00", lines[1]);
+        Assert.Contains("(base): 8-11 h a week", lines[2]);
+        Assert.StartsWith("- This week: 8h00-8h48 in total (within the range", lines[3]);
+        Assert.Contains("swim 15-20% (1h16-1h41)", lines[4]);
+    }
+
+    [Fact]
+    public void Marathon_goal_has_no_volume_guide()
+    {
+        Assert.Empty(TriVolume.Lines(Ironman with { Race = RaceType.Marathon }, Today, [], []));
+        Assert.DoesNotContain("Weekly volume guide", PromptBuilder.Build([], [], Today, Ironman with { Race = RaceType.Marathon }));
+    }
+
+    [Fact]
+    public void Ironman_today_prompt_carries_the_guide() =>
+        Assert.Contains("- This week: 8h00 in total (no training", PromptBuilder.Build([], [], Today, Ironman));
 }

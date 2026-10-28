@@ -36,35 +36,53 @@ public static class PaceZones
     public static string Format(double secPerKm) => $"{(int)(secPerKm / 60)}:{(int)(secPerKm % 60):00}";
 }
 
+/// <summary>The training block a day falls in, from weeks to race day.</summary>
+public enum Block { NoDate, Base, Build, Peak, Taper, RaceDay, After }
+
 /// <summary>Where you are in the build, from the race date and the kind of race.</summary>
 public static class TrainingPhase
 {
+    public static Block BlockOf(DateOnly today, DateOnly? raceDate)
+    {
+        if (raceDate is not { } day) return Block.NoDate;
+        var days = day.DayNumber - today.DayNumber;
+        return days switch
+        {
+            < 0 => Block.After,
+            0 => Block.RaceDay,
+            < 21 => Block.Taper,
+            < 49 => Block.Peak,
+            < 91 => Block.Build,
+            _ => Block.Base,
+        };
+    }
+
     public static string Describe(DateOnly today, DateOnly? raceDate, RaceType race = RaceType.Marathon)
     {
         var tri = RaceTypes.IsTriathlon(race);
-        if (raceDate is not { } day)
+        var block = BlockOf(today, raceDate);
+        if (block == Block.NoDate)
             return tri
                 ? "No race date set yet: build aerobic base in all three sports, swim technique and consistency."
                 : "No race date set yet: build aerobic base and consistency, one quality session and one long run a week.";
 
-        var days = day.DayNumber - today.DayNumber;
-        if (days < 0) return $"The race was {-days} days ago: recovery, then easy {(tri ? "training" : "running")}.";
-        if (days == 0) return "Race day.";
+        var days = raceDate!.Value.DayNumber - today.DayNumber;
+        if (block == Block.After) return $"The race was {-days} days ago: recovery, then easy {(tri ? "training" : "running")}.";
+        if (block == Block.RaceDay) return "Race day.";
 
-        var weeks = days / 7;
         var longRide = race == RaceType.Ironman ? "5-6 h" : "3-3.5 h";
-        var phase = (tri, weeks) switch
+        var phase = (tri, block) switch
         {
-            (false, < 3) => "Taper: cut volume 30-50%, keep a little marathon-pace work, arrive fresh",
-            (false, < 7) => "Peak: highest long runs (30-35 km / 19-22 mi with marathon-pace segments), volume at its top",
-            (false, < 13) => "Build: grow the long run, add marathon-pace and threshold work",
+            (false, Block.Taper) => "Taper: cut volume 30-50%, keep a little marathon-pace work, arrive fresh",
+            (false, Block.Peak) => "Peak: highest long runs (30-35 km / 19-22 mi with marathon-pace segments), volume at its top",
+            (false, Block.Build) => "Build: grow the long run, add marathon-pace and threshold work",
             (false, _) => "Base: build volume gradually (about 10% a week at most), mostly easy, strides",
-            (true, < 3) => "Taper: cut volume 40-60%, keep short race-pace efforts in each sport, arrive fresh",
-            (true, < 7) => $"Peak: longest rides ({longRide}) with race-power blocks, brick runs off the bike, open-water swims",
-            (true, < 13) => "Build: grow the long ride and long run, a weekly brick, threshold work in each sport",
+            (true, Block.Taper) => "Taper: cut volume 40-60%, keep short race-pace efforts in each sport, arrive fresh",
+            (true, Block.Peak) => $"Peak: longest rides ({longRide}) with race-power blocks, brick runs off the bike, open-water swims",
+            (true, Block.Build) => "Build: grow the long ride and long run, a weekly brick, threshold work in each sport",
             (true, _) => "Base: aerobic volume across swim, bike and run (about 10% a week at most), swim technique, strength",
         };
-        return $"{weeks} weeks and {days % 7} days to race day. {phase}.";
+        return $"{days / 7} weeks and {days % 7} days to race day. {phase}.";
     }
 }
 
